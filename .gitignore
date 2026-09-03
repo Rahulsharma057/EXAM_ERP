@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+**/.next/
+
+# Production
+dist/
+**/dist/
+build/
+**/build/
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Keep example env
+!.env.example
+!**/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+
+# Test
+playwright-report/
+test-results/
+
+# Uploads / generated files
+uploads/
+storage/
+public/uploads/
+**/uploads/
+**/storage/
+
+# Database / backups
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
