@@ -1,4 +1,3 @@
-
 const Assessment = require("../models/Assessment");
 const AssessmentSubmission = require("../models/AssessmentSubmission");
 const AssessmentAnswer = require("../models/AssessmentAnswer");
@@ -140,7 +139,7 @@ const getAssessmentStructure = async (assessmentId) => {
 
 // ============================================================
 // BUILD CURRENT TEMPLATE STRUCTURE
-// Used for pending students / marks entry
+// Used for pending students / marks entry / results structure
 // ============================================================
 
 const buildTemplateStructure = async (assessmentId) => {
@@ -302,19 +301,33 @@ exports.getAssessmentResults = async (req, res) => {
       ];
     }
 
-    const students = await Student.find(
-      studentFilter
-    ).sort({
-      rollNumber: 1,
-    });
+    // ========================================================
+    // STUDENTS + SUBMISSIONS + STRUCTURE (Parts/Sections)
+    //
+    // IMPORTANT:
+    // "structure" (parts/sections list) is needed by the
+    // frontend to build part-wise / section-wise columns
+    // in the results table AND the export field checkboxes.
+    // Without this, ResultsTable receives empty parts/sections
+    // and the Excel export options for Parts/Sections stay
+    // empty, so those fields never get exported.
+    // ========================================================
 
-    const submissions =
-      await AssessmentSubmission.find({
-        assessment: assessmentId,
-      }).populate(
-        "student",
-        "name rollNumber"
-      );
+    const [students, submissions, structure] =
+      await Promise.all([
+        Student.find(studentFilter).sort({
+          rollNumber: 1,
+        }),
+
+        AssessmentSubmission.find({
+          assessment: assessmentId,
+        }).populate(
+          "student",
+          "name rollNumber"
+        ),
+
+        buildTemplateStructure(assessmentId),
+      ]);
 
     const submissionMap = new Map();
 
@@ -533,6 +546,25 @@ exports.getAssessmentResults = async (req, res) => {
           batch: assessment.batch,
           course: assessment.course,
         },
+
+        // ====================================================
+        // NEW: Parts / Sections structure
+        //
+        // Needed by the frontend (ResultsTable) to:
+        //  1. Render part-wise / section-wise columns
+        //  2. Build the Export dialog's Part/Section checkboxes
+        //
+        // Direct-section assessments -> hasParts=false ->
+        //   parts=[] and sections=[...] (flat list)
+        // Part-based assessments -> hasParts=true ->
+        //   parts=[{ ...part, sections:[...] }] and sections=[]
+        // ====================================================
+
+        hasParts: Boolean(assessment.hasParts),
+
+        parts: structure?.parts || [],
+
+        sections: structure?.sections || [],
 
         stats: {
           totalStudents: results.length,
@@ -3277,4 +3309,3 @@ exports.getAccessibleAssessment =
 
 exports.getAssessmentStructure =
   getAssessmentStructure;
-

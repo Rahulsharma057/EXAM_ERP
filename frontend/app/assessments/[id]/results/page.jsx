@@ -1,7 +1,11 @@
-
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
+
 import { useParams } from 'next/navigation';
 
 import {
@@ -32,6 +36,7 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import Layout from '../../../../components/common/Layout';
 import ResultsTable from '../../../../components/results/ResultsTable';
 import StudentResultDetail from '../../../../components/results/StudentResultDetail';
+
 import { api } from '../../../../services/api';
 
 export default function AssessmentResultsPage() {
@@ -44,7 +49,9 @@ export default function AssessmentResultsPage() {
   const [error, setError] = useState('');
 
   const [search, setSearch] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedStudent, setSelectedStudent] =
+    useState(null);
+
   const [importFile, setImportFile] = useState(null);
 
   // =========================================================
@@ -64,7 +71,10 @@ export default function AssessmentResultsPage() {
 
       setData(res?.data || null);
     } catch (err) {
-      console.error('GET ASSESSMENT RESULTS ERROR:', err);
+      console.error(
+        'GET ASSESSMENT RESULTS ERROR:',
+        err
+      );
 
       setError(
         err?.message ||
@@ -92,16 +102,21 @@ export default function AssessmentResultsPage() {
     try {
       setImporting(true);
 
-      await api.importMarks(id, importFile);
+      await api.importMarks(
+        id,
+        importFile
+      );
 
-      alert('Marks imported successfully');
+      alert(
+        'Marks imported successfully'
+      );
 
       setImportFile(null);
 
-      // Reset file input visually
-      const fileInput = document.getElementById(
-        'assessment-marks-import-input'
-      );
+      const fileInput =
+        document.getElementById(
+          'assessment-marks-import-input'
+        );
 
       if (fileInput) {
         fileInput.value = '';
@@ -109,7 +124,10 @@ export default function AssessmentResultsPage() {
 
       await load();
     } catch (err) {
-      console.error('IMPORT MARKS ERROR:', err);
+      console.error(
+        'IMPORT MARKS ERROR:',
+        err
+      );
 
       alert(
         err?.message ||
@@ -124,35 +142,95 @@ export default function AssessmentResultsPage() {
   // EXPORT TEMPLATE
   // =========================================================
 
-  const handleExportTemplate = async () => {
-    try {
-      await api.exportTemplate(id);
-    } catch (err) {
-      console.error('EXPORT TEMPLATE ERROR:', err);
+  const handleExportTemplate =
+    async () => {
+      try {
+        await api.exportTemplate(id);
+      } catch (err) {
+        console.error(
+          'EXPORT TEMPLATE ERROR:',
+          err
+        );
 
-      alert(
-        err?.message ||
-          'Failed to download template'
-      );
-    }
-  };
+        alert(
+          err?.message ||
+            'Failed to download template'
+        );
+      }
+    };
 
   // =========================================================
   // EXPORT RESULTS
   // =========================================================
+  //
+  // IMPORTANT:
+  // ResultsTable se selected dynamic options
+  // yahan receive honge.
+  //
+  // options structure:
+  //
+  // {
+  //   student: {
+  //     rollNumber: true,
+  //     name: true
+  //   },
+  //
+  //   parts: {
+  //     partId: {
+  //       attempted: true,
+  //       obtained: true,
+  //       max: true,
+  //       percentage: true
+  //     }
+  //   },
+  //
+  //   sections: {
+  //     sectionId: {
+  //       obtained: true,
+  //       max: true,
+  //       percentage: true
+  //     }
+  //   },
+  //
+  //   overall: {
+  //     totalObtained: true,
+  //     totalMax: true,
+  //     percentage: true,
+  //     status: true
+  //   }
+  // }
+  //
+  // =========================================================
 
-  const handleExportResults = async () => {
-    try {
-      await api.exportResults(id);
-    } catch (err) {
-      console.error('EXPORT RESULTS ERROR:', err);
+  const handleExportResults =
+    async (options) => {
+      try {
+        if (!id) {
+          throw new Error(
+            'Assessment ID is missing'
+          );
+        }
 
-      alert(
-        err?.message ||
-          'Failed to export results'
-      );
-    }
-  };
+        await api.exportResults(
+          id,
+          options
+        );
+      } catch (err) {
+        console.error(
+          'EXPORT RESULTS ERROR:',
+          err
+        );
+
+        alert(
+          err?.message ||
+            'Failed to export results'
+        );
+
+        // Re-throw so ResultsTable knows
+        // download failed.
+        throw err;
+      }
+    };
 
   // =========================================================
   // LOADING
@@ -215,72 +293,94 @@ export default function AssessmentResultsPage() {
   // SAFE DATA
   // =========================================================
 
-  const assessment = data.assessment || {};
+  const assessment =
+    data.assessment || {};
 
   const stats = {
     totalStudents:
-      Number(data.stats?.totalStudents) || 0,
+      Number(
+        data.stats?.totalStudents
+      ) || 0,
 
     completed:
-      Number(data.stats?.completed) || 0,
+      Number(
+        data.stats?.completed
+      ) || 0,
 
     pending:
-      Number(data.stats?.pending) || 0,
+      Number(
+        data.stats?.pending
+      ) || 0,
 
     averageScore:
-      Number(data.stats?.averageScore) || 0,
+      Number(
+        data.stats?.averageScore
+      ) || 0,
   };
 
-  const sections = Array.isArray(
-    assessment.sections
-  )
-    ? assessment.sections
-    : [];
-
-  const parts = Array.isArray(
-    assessment.parts
-  )
+const parts = Array.isArray(data.parts)
+  ? data.parts
+  : Array.isArray(assessment.parts)
     ? assessment.parts
     : [];
 
-  const hasParts =
-    Boolean(
-      assessment.hasParts
-    ) || parts.length > 0;
+const sections = Array.isArray(data.sections)
+  ? data.sections
+  : Array.isArray(assessment.sections)
+    ? assessment.sections
+    : [];
 
+const hasParts =
+  Boolean(data.hasParts) ||
+  Boolean(assessment.hasParts) ||
+  parts.length > 0;
   // =========================================================
   // TOTAL STRUCTURE
   // =========================================================
 
-  const configuredTotalMarks = hasParts
-    ? parts.reduce(
-        (sum, part) =>
-          sum +
-          (part?.isOptional
-            ? 0
-            : Number(part?.totalMarks) || 0),
-        0
-      )
-    : sections.reduce(
-        (sum, section) =>
-          sum +
-          (Number(section?.totalMarks) || 0),
-        0
-      );
+  const configuredTotalMarks =
+    hasParts
+      ? parts.reduce(
+          (sum, part) =>
+            sum +
+            (part?.isOptional
+              ? 0
+              : Number(
+                  part?.totalMarks
+                ) || 0),
+          0
+        )
+      : sections.reduce(
+          (sum, section) =>
+            sum +
+            (Number(
+              section?.totalMarks
+            ) || 0),
+          0
+        );
 
-  const totalQuestions = hasParts
-    ? parts.reduce(
-        (sum, part) =>
-          sum +
-          (Number(part?.totalQuestions) || 0),
-        0
-      )
-    : sections.reduce(
-        (sum, section) =>
-          sum +
-          (Number(section?.totalQuestions) || 0),
-        0
-      );
+  const totalQuestions =
+    hasParts
+      ? parts.reduce(
+          (sum, part) =>
+            sum +
+            (Number(
+              part?.totalQuestions
+            ) || 0),
+          0
+        )
+      : sections.reduce(
+          (sum, section) =>
+            sum +
+            (Number(
+              section?.totalQuestions
+            ) || 0),
+          0
+        );
+
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
     <Layout>
@@ -296,7 +396,8 @@ export default function AssessmentResultsPage() {
             xs: 'column',
             md: 'row',
           },
-          justifyContent: 'space-between',
+          justifyContent:
+            'space-between',
           alignItems: {
             xs: 'flex-start',
             md: 'center',
@@ -311,9 +412,7 @@ export default function AssessmentResultsPage() {
             alignItems="center"
             flexWrap="wrap"
           >
-            <AssessmentIcon
-              color="primary"
-            />
+            <AssessmentIcon color="primary" />
 
             <Typography
               variant="h4"
@@ -342,6 +441,7 @@ export default function AssessmentResultsPage() {
             {assessment.code
               ? `Code: ${assessment.code}`
               : 'Assessment Results'}
+
             {assessment.weekNumber
               ? ` • Week ${assessment.weekNumber}`
               : ''}
@@ -443,9 +543,7 @@ export default function AssessmentResultsPage() {
               alignItems="center"
               sx={{ mt: 0.5 }}
             >
-              <CheckCircleIcon
-                color="success"
-              />
+              <CheckCircleIcon color="success" />
 
               <Typography
                 variant="h4"
@@ -486,9 +584,7 @@ export default function AssessmentResultsPage() {
               alignItems="center"
               sx={{ mt: 0.5 }}
             >
-              <PendingActionsIcon
-                color="warning"
-              />
+              <PendingActionsIcon color="warning" />
 
               <Typography
                 variant="h4"
@@ -589,9 +685,11 @@ export default function AssessmentResultsPage() {
             <Chip
               label={assessment.status}
               color={
-                assessment.status === 'PUBLISHED'
+                assessment.status ===
+                'PUBLISHED'
                   ? 'success'
-                  : assessment.status === 'CLOSED'
+                  : assessment.status ===
+                      'CLOSED'
                     ? 'default'
                     : 'warning'
               }
@@ -647,30 +745,36 @@ export default function AssessmentResultsPage() {
             }}
           >
             {/* Template */}
+
             <Button
               variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleExportTemplate}
+              startIcon={
+                <DownloadIcon />
+              }
+              onClick={
+                handleExportTemplate
+              }
               fullWidth
             >
               Template
             </Button>
 
-            {/* Export */}
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleExportResults}
-              fullWidth
-            >
-              Export
-            </Button>
+            {/* 
+              IMPORTANT:
+              Result export button ab ResultsTable
+              ke andar hai.
+
+              Wahan user pehle fields select karega.
+            */}
 
             {/* Select File */}
+
             <Button
               variant="contained"
               component="label"
-              startIcon={<UploadIcon />}
+              startIcon={
+                <UploadIcon />
+              }
               disabled={importing}
               fullWidth
             >
@@ -693,6 +797,7 @@ export default function AssessmentResultsPage() {
             </Button>
 
             {/* Upload */}
+
             {importFile && (
               <Button
                 variant="contained"
@@ -720,6 +825,7 @@ export default function AssessmentResultsPage() {
         </Stack>
 
         {/* Selected file */}
+
         {importFile && (
           <Box sx={{ mt: 2 }}>
             <Chip
@@ -746,13 +852,20 @@ export default function AssessmentResultsPage() {
       ====================================================== */}
 
       <ResultsTable
-        results={data.results || []}
+        results={
+          data.results || []
+        }
         sections={sections}
         parts={parts}
         hasParts={hasParts}
         assessment={assessment}
         onViewStudent={(studentId) =>
-          setSelectedStudent(studentId)
+          setSelectedStudent(
+            studentId
+          )
+        }
+        onExportResults={
+          handleExportResults
         }
       />
 
@@ -761,7 +874,9 @@ export default function AssessmentResultsPage() {
       ====================================================== */}
 
       <Dialog
-        open={Boolean(selectedStudent)}
+        open={Boolean(
+          selectedStudent
+        )}
         onClose={() =>
           setSelectedStudent(null)
         }
@@ -784,18 +899,29 @@ export default function AssessmentResultsPage() {
         <DialogTitle
           sx={{
             fontWeight: 700,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
+            borderBottom:
+              '1px solid',
+            borderColor:
+              'divider',
           }}
         >
           Student Result Detail
         </DialogTitle>
 
-        <DialogContent sx={{ p: { xs: 1.5, sm: 3 } }}>
+        <DialogContent
+          sx={{
+            p: {
+              xs: 1.5,
+              sm: 3,
+            },
+          }}
+        >
           {selectedStudent && (
             <StudentResultDetail
               assessmentId={id}
-              studentId={selectedStudent}
+              studentId={
+                selectedStudent
+              }
             />
           )}
         </DialogContent>

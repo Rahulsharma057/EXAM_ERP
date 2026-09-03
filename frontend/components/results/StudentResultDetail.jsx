@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -44,24 +43,65 @@ const getPercentage = (obtained, max) => {
   );
 };
 
-const getAnswerDisplay = (value) => {
+/*
+ * FIX:
+ *
+ * The backend never stores a real answerValue for
+ * YES_NO questions (it always saves answerValue: "" —
+ * see saveStudentMarks in the controller). The true
+ * source of truth for a YES_NO answer is awardedScore
+ * vs maxPoints, exactly like the marks-entry page derives
+ * it for editing.
+ *
+ * Previously this function only looked at answerValue,
+ * so YES_NO rows always displayed "-" in the Answer
+ * column even though the Score column showed a correct
+ * awardedScore. Now it accepts the full question object
+ * and derives YES/NO from the score for that type, and
+ * falls back to the raw answerValue for every other type.
+ */
+const getAnswerDisplay = (question) => {
+  const {
+    questionType,
+    answerValue,
+    awardedScore,
+    maxPoints,
+  } = question || {};
+
+  if (questionType === 'YES_NO') {
+    if (
+      awardedScore === null ||
+      awardedScore === undefined ||
+      awardedScore === ''
+    ) {
+      return '-';
+    }
+
+    const max = Number(maxPoints) || 0;
+
+    return Number(awardedScore) === max &&
+      max > 0
+      ? 'YES'
+      : 'NO';
+  }
+
   if (
-    value === null ||
-    value === undefined ||
-    value === ''
+    answerValue === null ||
+    answerValue === undefined ||
+    answerValue === ''
   ) {
     return '-';
   }
 
-  if (typeof value === 'object') {
+  if (typeof answerValue === 'object') {
     try {
-      return JSON.stringify(value);
+      return JSON.stringify(answerValue);
     } catch {
       return '-';
     }
   }
 
-  return String(value);
+  return String(answerValue);
 };
 
 const getScoreColor = (
@@ -200,6 +240,75 @@ export default function StudentResultDetail({
     return [];
   }, [data]);
 
+  /*
+   * FIX: Rules of Hooks — these two useMemo calls used to
+   * live below the loading/error/no-data early returns, so
+   * they were skipped entirely on those renders and only
+   * called once data existed. React detected a different
+   * number of hooks between renders ("Rendered more hooks
+   * than during the previous render"). Moved above every
+   * early return and guarded with `data?.` so they run on
+   * every render, in the same order, no matter what.
+   */
+
+  // ==========================================================
+  // PART SCORE MAP
+  // ==========================================================
+
+  const partScoreMap = useMemo(() => {
+    const map = new Map();
+
+    const scoreList =
+      Array.isArray(data?.partScores)
+        ? data.partScores
+        : [];
+
+    scoreList.forEach((score) => {
+      const id =
+        score?.partId ||
+        score?._id;
+
+      if (id) {
+        map.set(
+          String(id),
+          score
+        );
+      }
+    });
+
+    return map;
+  }, [data]);
+
+  // ==========================================================
+  // SECTION SCORE MAP
+  // ==========================================================
+
+  const sectionScoreMap = useMemo(() => {
+    const map = new Map();
+
+    const scoreList =
+      Array.isArray(
+        data?.sectionScores
+      )
+        ? data.sectionScores
+        : [];
+
+    scoreList.forEach((score) => {
+      const id =
+        score?.sectionId ||
+        score?._id;
+
+      if (id) {
+        map.set(
+          String(id),
+          score
+        );
+      }
+    });
+
+    return map;
+  }, [data]);
+
   // ==========================================================
   // LOADING
   // ==========================================================
@@ -302,64 +411,6 @@ export default function StudentResultDetail({
           totalObtained,
           totalMax
         );
-
-  // ==========================================================
-  // PART SCORE MAP
-  // ==========================================================
-
-  const partScoreMap = useMemo(() => {
-    const map = new Map();
-
-    const scoreList =
-      Array.isArray(data.partScores)
-        ? data.partScores
-        : [];
-
-    scoreList.forEach((score) => {
-      const id =
-        score?.partId ||
-        score?._id;
-
-      if (id) {
-        map.set(
-          String(id),
-          score
-        );
-      }
-    });
-
-    return map;
-  }, [data]);
-
-  // ==========================================================
-  // SECTION SCORE MAP
-  // ==========================================================
-
-  const sectionScoreMap = useMemo(() => {
-    const map = new Map();
-
-    const scoreList =
-      Array.isArray(
-        data.sectionScores
-      )
-        ? data.sectionScores
-        : [];
-
-    scoreList.forEach((score) => {
-      const id =
-        score?.sectionId ||
-        score?._id;
-
-      if (id) {
-        map.set(
-          String(id),
-          score
-        );
-      }
-    });
-
-    return map;
-  }, [data]);
 
   // ==========================================================
   // RENDER STUDENT HEADER
@@ -957,7 +1008,7 @@ export default function StudentResultDetail({
                             }}
                           >
                             {getAnswerDisplay(
-                              q.answerValue
+                              q
                             )}
                           </Typography>
                         </TableCell>
@@ -1463,4 +1514,3 @@ export default function StudentResultDetail({
     </Box>
   );
 }
-

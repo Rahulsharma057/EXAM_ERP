@@ -755,74 +755,88 @@ export const api = {
   // EXCEL - EXPORT RESULTS
   // ==========================================================
 
-  exportResults: async (assessmentId) => {
-    if (!assessmentId) {
-      throw new Error("Assessment is required");
+  exportResults: async (
+  assessmentId,
+  options = {}
+) => {
+  const token = getToken();
+
+  const query = new URLSearchParams();
+
+  query.set(
+    "options",
+    JSON.stringify(options)
+  );
+
+  const response = await fetch(
+    `${API_BASE}/excel/assessments/${assessmentId}/export-results?${query.toString()}`,
+    {
+      method: "GET",
+
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    let message =
+      "Failed to export results";
+
+    try {
+      const data =
+        await response.json();
+
+      message =
+        data?.message || message;
+    } catch {
+      // ignore
     }
 
-    const res = await fetch(
-      `${API_BASE}/excel/assessments/${assessmentId}/export-results`,
-      {
-        method: "GET",
+    throw new Error(message);
+  }
 
-        headers: {
-          Authorization: `Bearer ${getToken()}`,
-        },
-      },
+  const blob =
+    await response.blob();
+
+  const disposition =
+    response.headers.get(
+      "Content-Disposition"
     );
 
-    if (!res.ok) {
-      let message =
-        "Failed to export results";
+  let fileName =
+    `Assessment_Results_${assessmentId}.xlsx`;
 
-      try {
-        const data = await res.json();
+  if (disposition) {
+    const match =
+      disposition.match(
+        /filename="?([^"]+)"?/i
+      );
 
-        message =
-          data?.message || message;
-      } catch {}
-
-      throw new Error(message);
+    if (match?.[1]) {
+      fileName = match[1];
     }
+  }
 
-    const blob = await res.blob();
+  const url =
+    window.URL.createObjectURL(blob);
 
-    const contentDisposition =
-      res.headers.get("Content-Disposition");
+  const link =
+    document.createElement("a");
 
-    let filename =
-      "assessment-results.xlsx";
+  link.href = url;
+  link.download = fileName;
 
-    if (contentDisposition) {
-      const match =
-        contentDisposition.match(
-          /filename="?([^"]+)"?/i,
-        );
+  document.body.appendChild(link);
 
-      if (match?.[1]) {
-        filename = match[1];
-      }
-    }
+  link.click();
 
-    const url =
-      window.URL.createObjectURL(blob);
+  link.remove();
 
-    const a =
-      document.createElement("a");
+  window.URL.revokeObjectURL(url);
 
-    a.href = url;
-    a.download = filename;
-
-    document.body.appendChild(a);
-
-    a.click();
-
-    a.remove();
-
-    window.URL.revokeObjectURL(url);
-
-    return true;
-  },
+  return true;
+},
 
   // ==========================================================
   // EXCEL - IMPORT MARKS

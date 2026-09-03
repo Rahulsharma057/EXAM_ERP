@@ -1,4 +1,3 @@
-
 const express = require("express");
 const multer = require("multer");
 
@@ -12,7 +11,10 @@ const {
   downloadStudentTemplate,
 } = require("../controllers/excelController");
 
-const { protect, authorize } = require("../middleware/auth");
+const {
+  protect,
+  authorize,
+} = require("../middleware/auth");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -22,7 +24,10 @@ const upload = multer({
 // ASSESSMENT EXCEL
 // ============================================================
 
-// Download marks entry template
+// ============================================================
+// DOWNLOAD MARKS ENTRY TEMPLATE
+// ============================================================
+
 router.get(
   "/assessments/:assessmentId/export-template",
   protect,
@@ -35,7 +40,72 @@ router.get(
   exportTemplate
 );
 
-// Download assessment results
+// ============================================================
+// DOWNLOAD ASSESSMENT RESULTS
+// ============================================================
+//
+// Dynamic export options:
+//
+// {
+//   student: {
+//     rollNumber: true,
+//     name: true
+//   },
+//
+//   parts: {
+//     "<partId>": {
+//       attempted: true,
+//       obtained: true,
+//       max: true,
+//       percentage: true
+//     }
+//   },
+//
+//   sections: {
+//     "<sectionId>": {
+//       obtained: true,
+//       max: true,
+//       percentage: true
+//     }
+//   },
+//
+//   overall: {
+//     totalObtained: true,
+//     totalMax: true,
+//     percentage: true,
+//     status: true
+//   }
+// }
+//
+// Example:
+//
+// ?options={
+//   "student":{"rollNumber":true,"name":true},
+//   "parts":{
+//     "PART_ID":{
+//       "attempted":true,
+//       "obtained":true,
+//       "max":true,
+//       "percentage":true
+//     }
+//   },
+//   "sections":{
+//     "SECTION_ID":{
+//       "obtained":true,
+//       "max":true,
+//       "percentage":true
+//     }
+//   },
+//   "overall":{
+//     "totalObtained":true,
+//     "totalMax":true,
+//     "percentage":true,
+//     "status":true
+//   }
+// }
+//
+// ============================================================
+
 router.get(
   "/assessments/:assessmentId/export-results",
   protect,
@@ -48,7 +118,10 @@ router.get(
   exportResults
 );
 
-// Import marks from Excel
+// ============================================================
+// IMPORT MARKS FROM EXCEL
+// ============================================================
+
 router.post(
   "/assessments/:assessmentId/import-marks",
   protect,
@@ -66,7 +139,10 @@ router.post(
 // STUDENT EXCEL
 // ============================================================
 
-// Import students
+// ============================================================
+// IMPORT STUDENTS
+// ============================================================
+
 router.post(
   "/import-students",
   protect,
@@ -76,9 +152,13 @@ router.post(
     "super_admin"
   ),
   upload.single("file"),
+  importStudents
 );
 
-// Download student import template
+// ============================================================
+// DOWNLOAD STUDENT IMPORT TEMPLATE
+// ============================================================
+
 router.get(
   "/student-template",
   protect,
@@ -91,4 +171,3 @@ router.get(
 );
 
 module.exports = router;
-
