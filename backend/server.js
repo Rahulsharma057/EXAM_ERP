@@ -1,26 +1,27 @@
-require('dotenv').config();
+require("dotenv").config();
 
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 
-const connectDB = require('./config/database');
-const errorHandler = require('./middleware/errorHandler');
+const connectDB = require("./config/database");
+const errorHandler = require("./middleware/errorHandler");
 
 // ======================================================
 // ROUTES
 // ======================================================
 
-const authRoutes = require('./routes/auth');
-const orgRoutes = require('./routes/org');
-const userRoutes = require('./routes/users');
+const authRoutes = require("./routes/auth");
+const orgRoutes = require("./routes/org");
+const userRoutes = require("./routes/users");
 
-const assessmentRoutes = require('./routes/assessments');
-const sectionRoutes = require('./routes/sections');
-const questionRoutes = require('./routes/questions');
-const submissionRoutes = require('./routes/submissions');
-const resultRoutes = require('./routes/results');
-const excelRoutes = require('./routes/excel');
-const studentRoutes = require('./routes/students');
+const assessmentRoutes = require("./routes/assessments");
+const sectionRoutes = require("./routes/sections");
+const questionRoutes = require("./routes/questions");
+const submissionRoutes = require("./routes/submissions");
+const resultRoutes = require("./routes/results");
+const excelRoutes = require("./routes/excel");
+const studentRoutes = require("./routes/students");
+const assessmentPartRoutes = require("./routes/assessmentPartRoutes");
 
 // ======================================================
 // DATABASE
@@ -37,9 +38,7 @@ const app = express();
 // ======================================================
 // CORS
 // ======================================================
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-];
+const allowedOrigins = [process.env.CLIENT_URL];
 
 app.use(
   cors({
@@ -54,36 +53,31 @@ app.use(
       }
 
       // Vercel preview deployments
-      if (
-        origin.endsWith(".vercel.app") &&
-        origin.includes("exam-")
-      ) {
+      if (origin.endsWith(".vercel.app") && origin.includes("exam-")) {
         return callback(null, true);
       }
 
-      return callback(
-        new Error(`CORS blocked: ${origin}`)
-      );
+      return callback(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true,
-  })
+  }),
 );
 
 // ======================================================
 // BODY PARSER
 // ======================================================
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // ======================================================
 // HEALTH CHECK
 // ======================================================
 
-app.get('/api/health', (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({
     success: true,
-    status: 'OK',
+    status: "OK",
     timestamp: new Date().toISOString(),
   });
 });
@@ -92,21 +86,22 @@ app.get('/api/health', (req, res) => {
 // API ROUTES
 // ======================================================
 
-app.use('/api/auth', authRoutes);
+app.use("/api/auth", authRoutes);
 
-app.use('/api/org', orgRoutes);
+app.use("/api/org", orgRoutes);
 
-app.use('/api/users', userRoutes);
+app.use("/api/users", userRoutes);
 
-app.use('/api/assessments', assessmentRoutes);
-app.use('/api/sections', sectionRoutes);
-app.use('/api/questions', questionRoutes);
-app.use('/api/submissions', submissionRoutes);
-app.use('/api/results', resultRoutes);
-app.use('/api/excel', excelRoutes);
+app.use("/api/assessments", assessmentRoutes);
+app.use("/api/sections", sectionRoutes);
+app.use("/api/questions", questionRoutes);
+app.use("/api/submissions", submissionRoutes);
+app.use("/api/results", resultRoutes);
+app.use("/api/excel", excelRoutes);
 
-app.use('/api/org/students', studentRoutes);
+app.use("/api/org/students", studentRoutes);
 
+app.use("/api/assessment-parts", assessmentPartRoutes);
 // ======================================================
 // ERROR HANDLER
 // ======================================================

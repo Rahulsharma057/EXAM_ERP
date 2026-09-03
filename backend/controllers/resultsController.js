@@ -1,12 +1,240 @@
 
-const Assessment = require('../models/Assessment');
-const AssessmentSubmission = require('../models/AssessmentSubmission');
-const AssessmentAnswer = require('../models/AssessmentAnswer');
-const AssessmentSection = require('../models/AssessmentSection');
-const AssessmentQuestion = require('../models/AssessmentQuestion');
-const Student = require('../models/Student');
-const Batch = require('../models/Batch');
+const Assessment = require("../models/Assessment");
+const AssessmentSubmission = require("../models/AssessmentSubmission");
+const AssessmentAnswer = require("../models/AssessmentAnswer");
+const AssessmentSection = require("../models/AssessmentSection");
+const AssessmentQuestion = require("../models/AssessmentQuestion");
+const AssessmentPart = require("../models/AssessmentPart");
+const Student = require("../models/Student");
+const Batch = require("../models/Batch");
 
+// ============================================================
+// HELPERS
+// ============================================================
+
+const getUserId = (req) => {
+  return req.user?.id || req.user?._id;
+};
+
+const normalizeRole = (role) => {
+  return String(role || "").trim().toLowerCase();
+};
+
+const isTeacher = (user) => {
+  return normalizeRole(user?.role) === "teacher";
+};
+
+const isTeacherAssignedToBatch = (user, batchId) => {
+  if (!isTeacher(user)) {
+    return true;
+  }
+
+  const assignedBatches = (user?.batches || []).map((id) =>
+    id?.toString()
+  );
+
+  return assignedBatches.includes(batchId?.toString());
+};
+
+const getAccessibleAssessment = async (assessmentId, user) => {
+  const assessment = await Assessment.findById(assessmentId);
+
+  if (!assessment) {
+    return {
+      assessment: null,
+      error: {
+        status: 404,
+        message: "Assessment not found",
+      },
+    };
+  }
+
+  if (
+    isTeacher(user) &&
+    !isTeacherAssignedToBatch(user, assessment.batch)
+  ) {
+    return {
+      assessment: null,
+      error: {
+        status: 403,
+        message: "You are not authorized to access this assessment",
+      },
+    };
+  }
+
+  return {
+    assessment,
+    error: null,
+  };
+};
+
+const round2 = (value) => {
+  return Math.round(Number(value || 0) * 100) / 100;
+};
+
+// ============================================================
+// GET ASSESSMENT STRUCTURE
+// ============================================================
+
+const getAssessmentStructure = async (assessmentId) => {
+  const assessment = await Assessment.findById(assessmentId);
+
+  if (!assessment) {
+    return null;
+  }
+
+  const [parts, sections, questions] = await Promise.all([
+    assessment.hasParts
+      ? AssessmentPart.find({
+          assessment: assessmentId,
+          isActive: true,
+        }).sort({
+          displayOrder: 1,
+          createdAt: 1,
+        })
+      : [],
+
+    AssessmentSection.find({
+      assessment: assessmentId,
+      isActive: true,
+    }).sort({
+      displayOrder: 1,
+      createdAt: 1,
+    }),
+
+    AssessmentQuestion.find({
+      assessment: assessmentId,
+      isActive: true,
+    }).sort({
+      displayOrder: 1,
+      createdAt: 1,
+    }),
+  ]);
+
+  const questionsBySection = new Map();
+
+  for (const question of questions) {
+    const key = question.section?.toString();
+
+    if (!key) continue;
+
+    if (!questionsBySection.has(key)) {
+      questionsBySection.set(key, []);
+    }
+
+    questionsBySection.get(key).push(question);
+  }
+
+  const sectionsWithQuestions = sections.map((section) => ({
+    section,
+    questions:
+      questionsBySection.get(section._id.toString()) || [],
+  }));
+
+  return {
+    assessment,
+    parts,
+    sections: sectionsWithQuestions,
+  };
+};
+
+// ============================================================
+// BUILD CURRENT TEMPLATE STRUCTURE
+// Used for pending students / marks entry
+// ============================================================
+
+const buildTemplateStructure = async (assessmentId) => {
+  const structure = await getAssessmentStructure(assessmentId);
+
+  if (!structure) {
+    return null;
+  }
+
+  const { assessment, parts, sections } = structure;
+
+  if (!assessment.hasParts) {
+    return {
+      hasParts: false,
+      parts: [],
+      sections: sections.map(({ section, questions }) => ({
+        _id: section._id,
+        name: section.name,
+        description: section.description || "",
+        displayOrder: section.displayOrder,
+        part: null,
+        totalMarks: questions.reduce(
+          (sum, question) =>
+            sum + Number(question.maxPoints || 0),
+          0
+        ),
+        questions: questions.map((question) => ({
+          _id: question._id,
+          questionText: question.questionText,
+          questionType: question.questionType,
+          maxPoints: Number(question.maxPoints || 0),
+          isRequired: question.isRequired,
+          displayOrder: question.displayOrder,
+        })),
+      })),
+    };
+  }
+
+  const sectionsByPart = new Map();
+
+  for (const part of parts) {
+    sectionsByPart.set(part._id.toString(), []);
+  }
+
+  for (const { section, questions } of sections) {
+    if (!section.part) continue;
+
+    const key = section.part.toString();
+
+    if (!sectionsByPart.has(key)) {
+      sectionsByPart.set(key, []);
+    }
+
+    sectionsByPart.get(key).push({
+      _id: section._id,
+      name: section.name,
+      description: section.description || "",
+      displayOrder: section.displayOrder,
+      part: section.part,
+      totalMarks: questions.reduce(
+        (sum, question) =>
+          sum + Number(question.maxPoints || 0),
+        0
+      ),
+      questions: questions.map((question) => ({
+        _id: question._id,
+        questionText: question.questionText,
+        questionType: question.questionType,
+        maxPoints: Number(question.maxPoints || 0),
+        isRequired: question.isRequired,
+        displayOrder: question.displayOrder,
+      })),
+    });
+  }
+
+  return {
+    hasParts: true,
+
+    parts: parts.map((part) => ({
+      _id: part._id,
+      name: part.name,
+      code: part.code,
+      description: part.description || "",
+      isOptional: Boolean(part.isOptional),
+      displayOrder: part.displayOrder,
+      totalMarks: Number(part.totalMarks || 0),
+      totalQuestions: Number(part.totalQuestions || 0),
+      sections:
+        sectionsByPart.get(part._id.toString()) || [],
+    })),
+
+    sections: [],
+  };
+};
 
 // ============================================================
 // GET ASSESSMENT RESULTS
@@ -19,26 +247,42 @@ exports.getAssessmentResults = async (req, res) => {
     const {
       search,
       status,
-      sortBy = 'overallPercentage',
-      sortOrder = 'desc',
+      sortBy = "overallPercentage",
+      sortOrder = "desc",
       page = 1,
-      limit = 50
+      limit = 50,
     } = req.query;
 
-    const assessment = await Assessment.findById(assessmentId)
-      .populate('batch', 'name')
-      .populate('course', 'name');
+    const { assessment, error } =
+      await getAccessibleAssessment(
+        assessmentId,
+        req.user
+      );
 
-    if (!assessment) {
-      return res.status(404).json({
+    if (error) {
+      return res.status(error.status).json({
         success: false,
-        message: 'Assessment not found'
+        message: error.message,
       });
     }
 
+    await assessment.populate([
+      {
+        path: "batch",
+        select: "name",
+      },
+      {
+        path: "course",
+        select: "name",
+      },
+    ]);
+
+    const batchId =
+      assessment.batch?._id || assessment.batch;
+
     const studentFilter = {
-      batch: assessment.batch._id || assessment.batch,
-      isActive: true
+      batch: batchId,
+      isActive: true,
     };
 
     if (search) {
@@ -46,64 +290,87 @@ exports.getAssessmentResults = async (req, res) => {
         {
           name: {
             $regex: search,
-            $options: 'i'
-          }
+            $options: "i",
+          },
         },
         {
           rollNumber: {
             $regex: search,
-            $options: 'i'
-          }
-        }
+            $options: "i",
+          },
+        },
       ];
     }
 
-    const students = await Student.find(studentFilter)
-      .sort({ rollNumber: 1 });
+    const students = await Student.find(
+      studentFilter
+    ).sort({
+      rollNumber: 1,
+    });
 
-    const submissions = await AssessmentSubmission.find({
-      assessment: assessmentId
-    }).populate('student', 'name rollNumber');
+    const submissions =
+      await AssessmentSubmission.find({
+        assessment: assessmentId,
+      }).populate(
+        "student",
+        "name rollNumber"
+      );
 
-    const submissionMap = {};
+    const submissionMap = new Map();
 
     submissions.forEach((sub) => {
       if (sub.student) {
-        submissionMap[sub.student._id.toString()] = sub;
+        submissionMap.set(
+          sub.student._id.toString(),
+          sub
+        );
       }
     });
 
     const results = students.map((student) => {
-      const sub = submissionMap[student._id.toString()];
+      const sub =
+        submissionMap.get(
+          student._id.toString()
+        );
 
       return {
         student: {
           _id: student._id,
           name: student.name,
-          rollNumber: student.rollNumber
+          rollNumber: student.rollNumber,
         },
 
-        status: sub ? sub.status : 'PENDING',
+        status: sub
+          ? sub.status
+          : "PENDING",
+
+        partScores: sub
+          ? sub.partScores || []
+          : [],
 
         sectionScores: sub
-          ? sub.sectionScores
+          ? sub.sectionScores || []
           : [],
 
         totalObtained: sub
-          ? sub.totalObtained
+          ? Number(sub.totalObtained || 0)
           : 0,
 
         totalMax: sub
-          ? sub.totalMax
-          : assessment.totalMarks,
+          ? Number(sub.totalMax || 0)
+          : Number(assessment.totalMarks || 0),
 
         overallPercentage: sub
-          ? sub.overallPercentage
+          ? Number(sub.overallPercentage || 0)
           : 0,
 
         submittedAt: sub
           ? sub.submittedAt
-          : null
+          : null,
+
+        updatedAt: sub
+          ? sub.updatedAt
+          : null,
       };
     });
 
@@ -111,46 +378,109 @@ exports.getAssessmentResults = async (req, res) => {
 
     if (status) {
       filtered = filtered.filter(
-        (result) => result.status === status
+        (result) =>
+          result.status === status
       );
     }
 
-    filtered.sort((a, b) => {
-      let aVal = a[sortBy] || 0;
-      let bVal = b[sortBy] || 0;
+    // ========================================================
+    // SAFE SORT
+    // ========================================================
 
-      if (sortOrder === 'asc') {
-        return aVal - bVal;
+    const allowedSortFields = new Set([
+      "overallPercentage",
+      "totalObtained",
+      "totalMax",
+      "submittedAt",
+      "student.name",
+      "student.rollNumber",
+    ]);
+
+    const safeSortBy =
+      allowedSortFields.has(sortBy)
+        ? sortBy
+        : "overallPercentage";
+
+    const getSortValue = (result) => {
+      if (safeSortBy === "student.name") {
+        return String(
+          result.student?.name || ""
+        ).toLowerCase();
       }
 
-      return bVal - aVal;
+      if (safeSortBy === "student.rollNumber") {
+        return String(
+          result.student?.rollNumber || ""
+        ).toLowerCase();
+      }
+
+      return result[safeSortBy];
+    };
+
+    filtered.sort((a, b) => {
+      const aVal = getSortValue(a);
+      const bVal = getSortValue(b);
+
+      if (
+        typeof aVal === "string" ||
+        typeof bVal === "string"
+      ) {
+        const comparison = String(aVal).localeCompare(
+          String(bVal)
+        );
+
+        return sortOrder === "asc"
+          ? comparison
+          : -comparison;
+      }
+
+      const aNumber = Number(aVal || 0);
+      const bNumber = Number(bVal || 0);
+
+      return sortOrder === "asc"
+        ? aNumber - bNumber
+        : bNumber - aNumber;
     });
 
-    const pageNumber = parseInt(page);
-    const pageLimit = parseInt(limit);
+    // ========================================================
+    // PAGINATION
+    // ========================================================
+
+    const pageNumber = Math.max(
+      parseInt(page, 10) || 1,
+      1
+    );
+
+    const pageLimit = Math.min(
+      Math.max(parseInt(limit, 10) || 50, 1),
+      200
+    );
 
     const total = filtered.length;
 
     const skip =
       (pageNumber - 1) * pageLimit;
 
-    const paginated =
-      filtered.slice(
-        skip,
-        skip + pageLimit
-      );
+    const paginated = filtered.slice(
+      skip,
+      skip + pageLimit
+    );
 
-    const completed =
-      results.filter(
-        (result) =>
-          result.status === 'COMPLETED'
-      );
+    // ========================================================
+    // STATS
+    // ========================================================
+
+    const completed = results.filter(
+      (result) =>
+        result.status === "COMPLETED"
+    );
 
     const avgScore =
       completed.length > 0
         ? completed.reduce(
             (sum, result) =>
-              sum + Number(
+              sum +
+              Number(
                 result.overallPercentage || 0
               ),
             0
@@ -190,32 +520,38 @@ exports.getAssessmentResults = async (req, res) => {
           name: assessment.name,
           code: assessment.code,
           weekNumber: assessment.weekNumber,
-          totalMarks: assessment.totalMarks,
+
+          hasParts: Boolean(
+            assessment.hasParts
+          ),
+
+          totalMarks:
+            Number(
+              assessment.totalMarks || 0
+            ),
+
           batch: assessment.batch,
-          course: assessment.course
+          course: assessment.course,
         },
 
         stats: {
           totalStudents: results.length,
-          completed: completed.length,
+
+          completed:
+            completed.length,
+
           pending:
             results.length -
             completed.length,
 
           averageScore:
-            Math.round(
-              avgScore * 100
-            ) / 100,
+            round2(avgScore),
 
           highestScore:
-            Math.round(
-              highest * 100
-            ) / 100,
+            round2(highest),
 
           lowestScore:
-            Math.round(
-              lowest * 100
-            ) / 100
+            round2(lowest),
         },
 
         results: paginated,
@@ -223,66 +559,91 @@ exports.getAssessmentResults = async (req, res) => {
         pagination: {
           page: pageNumber,
           limit: pageLimit,
-          total
-        }
-      }
+          total,
+          totalPages:
+            Math.ceil(
+              total / pageLimit
+            ),
+        },
+      },
     });
-
   } catch (error) {
     console.error(
-      'GET ASSESSMENT RESULTS ERROR:',
+      "GET ASSESSMENT RESULTS ERROR:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
-
 
 // ============================================================
 // GET STUDENT RESULTS
 // ============================================================
 
-exports.getStudentResults = async (req, res) => {
+exports.getStudentResults = async (
+  req,
+  res
+) => {
   try {
-    const { studentId } = req.params;
+    const { studentId } =
+      req.params;
 
     const student =
-      await Student.findById(studentId)
-        .populate('organisation', 'name')
-        .populate('centre', 'name')
-        .populate('course', 'name')
-        .populate('batch', 'name');
+      await Student.findById(
+        studentId
+      )
+        .populate(
+          "organisation",
+          "name"
+        )
+        .populate(
+          "centre",
+          "name"
+        )
+        .populate(
+          "course",
+          "name"
+        )
+        .populate(
+          "batch",
+          "name"
+        );
 
     if (!student) {
       return res.status(404).json({
         success: false,
-        message: 'Student not found'
+        message:
+          "Student not found",
       });
     }
 
     const submissions =
       await AssessmentSubmission.find({
         student: studentId,
-        status: 'COMPLETED'
+        status: "COMPLETED",
       })
         .populate(
-          'assessment',
-          'name weekNumber code totalMarks'
+          "assessment",
+          "name weekNumber code totalMarks hasParts"
         )
         .sort({
-          'assessment.weekNumber': 1
+          "assessment.weekNumber": 1,
         });
 
     const weeklyPerformance =
       submissions
-        .filter((sub) => sub.assessment)
+        .filter(
+          (sub) =>
+            sub.assessment
+        )
         .map((sub) => ({
           weekNumber:
-            sub.assessment.weekNumber,
+            sub.assessment
+              .weekNumber,
 
           assessmentName:
             sub.assessment.name,
@@ -290,20 +651,37 @@ exports.getStudentResults = async (req, res) => {
           assessmentId:
             sub.assessment._id,
 
+          code:
+            sub.assessment.code,
+
+          hasParts:
+            Boolean(
+              sub.assessment.hasParts
+            ),
+
           totalObtained:
-            sub.totalObtained,
+            Number(
+              sub.totalObtained || 0
+            ),
 
           totalMax:
-            sub.totalMax,
+            Number(
+              sub.totalMax || 0
+            ),
 
           percentage:
-            sub.overallPercentage,
+            Number(
+              sub.overallPercentage || 0
+            ),
+
+          partScores:
+            sub.partScores || [],
 
           sectionScores:
-            sub.sectionScores,
+            sub.sectionScores || [],
 
           submittedAt:
-            sub.submittedAt
+            sub.submittedAt,
         }));
 
     return res.json({
@@ -313,80 +691,123 @@ exports.getStudentResults = async (req, res) => {
         student: {
           _id: student._id,
           name: student.name,
-          rollNumber: student.rollNumber,
-          organisation: student.organisation,
-          centre: student.centre,
-          course: student.course,
-          batch: student.batch
+          rollNumber:
+            student.rollNumber,
+
+          organisation:
+            student.organisation,
+
+          centre:
+            student.centre,
+
+          course:
+            student.course,
+
+          batch:
+            student.batch,
         },
 
-        weeklyPerformance
-      }
+        weeklyPerformance,
+      },
     });
-
   } catch (error) {
     console.error(
-      'GET STUDENT RESULTS ERROR:',
+      "GET STUDENT RESULTS ERROR:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
-
 
 // ============================================================
 // GET BATCH RESULTS
 // ============================================================
 
-exports.getBatchResults = async (req, res) => {
+exports.getBatchResults = async (
+  req,
+  res
+) => {
   try {
-    const { batchId } = req.params;
-    const { weekNumber } = req.query;
+    const { batchId } =
+      req.params;
+
+    const { weekNumber } =
+      req.query;
 
     const batch =
-      await Batch.findById(batchId)
-        .populate('course', 'name')
-        .populate('centre', 'name')
-        .populate('organisation', 'name');
+      await Batch.findById(
+        batchId
+      )
+        .populate(
+          "course",
+          "name"
+        )
+        .populate(
+          "centre",
+          "name"
+        )
+        .populate(
+          "organisation",
+          "name"
+        );
 
     if (!batch) {
       return res.status(404).json({
         success: false,
-        message: 'Batch not found'
+        message:
+          "Batch not found",
+      });
+    }
+
+    if (
+      isTeacher(req.user) &&
+      !isTeacherAssignedToBatch(
+        req.user,
+        batchId
+      )
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You are not authorized to access this batch",
       });
     }
 
     const assessmentFilter = {
       batch: batchId,
+
       status: {
         $in: [
-          'PUBLISHED',
-          'CLOSED',
-          'ARCHIVED'
-        ]
-      }
+          "PUBLISHED",
+          "CLOSED",
+          "ARCHIVED",
+        ],
+      },
     };
 
     if (weekNumber) {
       assessmentFilter.weekNumber =
-        parseInt(weekNumber);
+        parseInt(
+          weekNumber,
+          10
+        );
     }
 
     const assessments =
       await Assessment.find(
         assessmentFilter
       ).sort({
-        weekNumber: 1
+        weekNumber: 1,
       });
 
     const totalStudents =
       await Student.countDocuments({
         batch: batchId,
-        isActive: true
+        isActive: true,
       });
 
     const results =
@@ -398,13 +819,19 @@ exports.getBatchResults = async (req, res) => {
                 assessment:
                   assessment._id,
 
-                status: 'COMPLETED'
-              });
+                status:
+                  "COMPLETED",
+              }).select(
+                "student totalObtained totalMax overallPercentage"
+              );
 
             const avgPercentage =
               submissions.length > 0
                 ? submissions.reduce(
-                    (sum, submission) =>
+                    (
+                      sum,
+                      submission
+                    ) =>
                       sum +
                       Number(
                         submission.overallPercentage ||
@@ -417,12 +844,28 @@ exports.getBatchResults = async (req, res) => {
 
             return {
               assessment: {
-                _id: assessment._id,
-                name: assessment.name,
+                _id:
+                  assessment._id,
+
+                name:
+                  assessment.name,
+
+                code:
+                  assessment.code,
+
                 weekNumber:
                   assessment.weekNumber,
+
+                hasParts:
+                  Boolean(
+                    assessment.hasParts
+                  ),
+
                 totalMarks:
-                  assessment.totalMarks
+                  Number(
+                    assessment.totalMarks ||
+                      0
+                  ),
               },
 
               totalStudents,
@@ -438,9 +881,9 @@ exports.getBatchResults = async (req, res) => {
                 ),
 
               averagePercentage:
-                Math.round(
-                  avgPercentage * 100
-                ) / 100
+                round2(
+                  avgPercentage
+                ),
             };
           }
         )
@@ -448,256 +891,541 @@ exports.getBatchResults = async (req, res) => {
 
     return res.json({
       success: true,
+
       data: {
         batch,
-        results
-      }
-    });
 
+        results,
+      },
+    });
   } catch (error) {
     console.error(
-      'GET BATCH RESULTS ERROR:',
+      "GET BATCH RESULTS ERROR:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
 
-
 // ============================================================
-// GET STUDENT WISE SECTION RESULTS
-// ============================================================
-
-// ============================================================
-// GET STUDENT WISE SECTION RESULTS
+// GET STUDENT WISE SECTION + PART RESULTS
 // ============================================================
 
-exports.getStudentWiseSectionResults = async (req, res) => {
-  try {
-    const { assessmentId, studentId } = req.params;
+exports.getStudentWiseSectionResults =
+  async (req, res) => {
+    try {
+      const {
+        assessmentId,
+        studentId,
+      } = req.params;
 
-    // ----------------------------------------------------------
-    // FIND ASSESSMENT
-    // ----------------------------------------------------------
+      const { assessment, error } =
+        await getAccessibleAssessment(
+          assessmentId,
+          req.user
+        );
 
-    const assessment = await Assessment.findById(assessmentId)
-      .populate('batch', 'name')
-      .populate('course', 'name');
+      if (error) {
+        return res.status(error.status).json({
+          success: false,
+          message: error.message,
+        });
+      }
 
-    if (!assessment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Assessment not found'
-      });
-    }
+      await assessment.populate([
+        {
+          path: "batch",
+          select: "name",
+        },
+        {
+          path: "course",
+          select: "name",
+        },
+      ]);
 
-    // ----------------------------------------------------------
-    // FIND STUDENT
-    // ----------------------------------------------------------
+      const batchId =
+        assessment.batch?._id ||
+        assessment.batch;
 
-    const student = await Student.findOne({
-      _id: studentId,
-      batch: assessment.batch?._id || assessment.batch,
-      isActive: true
-    }).select('name rollNumber fatherName');
+      const student =
+        await Student.findOne({
+          _id: studentId,
+          batch: batchId,
+          isActive: true,
+        }).select(
+          "name rollNumber fatherName"
+        );
 
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student does not belong to this assessment batch'
-      });
-    }
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Student does not belong to this assessment batch",
+        });
+      }
 
-    // ----------------------------------------------------------
-    // FIND SUBMISSION
-    // ----------------------------------------------------------
+      const submission =
+        await AssessmentSubmission.findOne({
+          assessment:
+            assessmentId,
 
-    const submission = await AssessmentSubmission.findOne({
-      assessment: assessmentId,
-      student: studentId
-    }).populate(
-      'student',
-      'name rollNumber'
-    );
+          student:
+            studentId,
+        }).populate(
+          "student",
+          "name rollNumber"
+        );
 
-    // ----------------------------------------------------------
-    // NO SUBMISSION
-    // ----------------------------------------------------------
+      // ======================================================
+      // NO SUBMISSION
+      // ======================================================
 
-    // IMPORTANT:
-    // Student ne abhi marks submit nahi kiye hain.
-    // Isko error nahi banana hai.
-    if (!submission) {
+      if (!submission) {
+        const structure =
+          await buildTemplateStructure(
+            assessmentId
+          );
+
+        return res.json({
+          success: true,
+
+          data: {
+            student: {
+              _id: student._id,
+              name: student.name,
+              rollNumber:
+                student.rollNumber,
+            },
+
+            assessment: {
+              _id:
+                assessment._id,
+
+              name:
+                assessment.name,
+
+              code:
+                assessment.code,
+
+              weekNumber:
+                assessment.weekNumber,
+
+              hasParts:
+                Boolean(
+                  assessment.hasParts
+                ),
+
+              totalMarks:
+                Number(
+                  assessment.totalMarks ||
+                    0
+                ),
+
+              batch:
+                assessment.batch,
+
+              course:
+                assessment.course,
+            },
+
+            status:
+              "PENDING",
+
+            parts:
+              structure?.parts ||
+              [],
+
+            sections:
+              structure?.sections ||
+              [],
+
+            totalObtained: 0,
+
+            totalMax:
+              Number(
+                assessment.totalMarks ||
+                  0
+              ),
+
+            overallPercentage: 0,
+          },
+        });
+      }
+
+      // ======================================================
+      // ANSWERS
+      // ======================================================
+
+      const answers =
+        await AssessmentAnswer.find({
+          submission:
+            submission._id,
+        }).sort({
+          "questionSnapshot.displayOrder":
+            1,
+        });
+
+      // ======================================================
+      // USE SNAPSHOT IDS
+      //
+      // Never group by section name because two sections can
+      // have same name.
+      // ======================================================
+
+      const sectionMap = new Map();
+      const partMap = new Map();
+
+      for (const answer of answers) {
+        const snapshot =
+          answer.questionSnapshot ||
+          {};
+
+        const sectionId =
+          snapshot.sectionId
+            ?.toString() ||
+          answer.section?.toString() ||
+          `section-${answer._id}`;
+
+        const partId =
+          snapshot.partId?.toString() ||
+          answer.part?.toString() ||
+          null;
+
+        const sectionName =
+          snapshot.sectionName ||
+          "General";
+
+        const maxPoints =
+          Number(
+            snapshot.maxPoints ||
+              0
+          );
+
+        const awardedScore =
+          Number(
+            answer.awardedScore ||
+              0
+          );
+
+        if (!sectionMap.has(sectionId)) {
+          sectionMap.set(
+            sectionId,
+            {
+              sectionId:
+                snapshot.sectionId ||
+                answer.section ||
+                null,
+
+              sectionName,
+
+              partId:
+                snapshot.partId ||
+                answer.part ||
+                null,
+
+              partName:
+                snapshot.partName ||
+                null,
+
+              partDisplayOrder:
+                Number(
+                  snapshot.partDisplayOrder ||
+                    0
+                ),
+
+              sectionDisplayOrder:
+                Number(
+                  snapshot.sectionDisplayOrder ||
+                    0
+                ),
+
+              questions: [],
+
+              obtained: 0,
+
+              max: 0,
+            }
+          );
+        }
+
+        const section =
+          sectionMap.get(
+            sectionId
+          );
+
+        section.questions.push({
+          questionId:
+            answer.question,
+
+          questionText:
+            snapshot.questionText ||
+            "",
+
+          questionType:
+            snapshot.questionType ||
+            "",
+
+          maxPoints,
+
+          answerValue:
+            answer.answerValue ?? "",
+
+          awardedScore,
+
+          displayOrder:
+            Number(
+              snapshot.displayOrder ||
+                0
+            ),
+        });
+
+        section.obtained +=
+          awardedScore;
+
+        section.max +=
+          maxPoints;
+      }
+
+      // ======================================================
+      // SECTION SCORES FROM SUBMISSION SNAPSHOT
+      //
+      // This is important for skipped optional Parts.
+      // ======================================================
+
+      const snapshotSectionScores =
+        submission.sectionScores ||
+        [];
+
+      const sections =
+        Array.from(
+          sectionMap.values()
+        ).map((section) => {
+          const savedScore =
+            snapshotSectionScores.find(
+              (item) =>
+                item.sectionId &&
+                section.sectionId &&
+                item.sectionId.toString() ===
+                  section.sectionId.toString()
+            );
+
+          const obtained =
+            savedScore
+              ? Number(
+                  savedScore.obtainedMarks ||
+                    0
+                )
+              : section.obtained;
+
+          const max =
+            savedScore
+              ? Number(
+                  savedScore.maxMarks ||
+                    0
+                )
+              : section.max;
+
+          return {
+            ...section,
+
+            obtained,
+
+            max,
+
+            percentage:
+              max > 0
+                ? round2(
+                    (obtained /
+                      max) *
+                      100
+                  )
+                : 0,
+          };
+        });
+
+      // ======================================================
+      // PART SCORES
+      // ======================================================
+
+      const partScores =
+        (submission.partScores || []).map(
+          (part) => ({
+            ...part.toObject?.() ||
+              part,
+
+            obtainedMarks:
+              Number(
+                part.obtainedMarks ||
+                  0
+              ),
+
+            maxMarks:
+              Number(
+                part.maxMarks ||
+                  0
+              ),
+
+            percentage:
+              Number(
+                part.percentage ||
+                  0
+              ),
+
+            attempted:
+              Boolean(
+                part.attempted
+              ),
+
+            skipped:
+              !Boolean(
+                part.attempted
+              ),
+          })
+        );
+
+      // ======================================================
+      // GROUP SECTIONS INSIDE PARTS
+      // ======================================================
+
+      const partResultMap =
+        new Map();
+
+      for (const part of partScores) {
+        partResultMap.set(
+          part.partId?.toString(),
+          {
+            ...part,
+
+            sections: [],
+          }
+        );
+      }
+
+      const directSections = [];
+
+      for (const section of sections) {
+        if (
+          section.partId &&
+          partResultMap.has(
+            section.partId.toString()
+          )
+        ) {
+          partResultMap
+            .get(
+              section.partId.toString()
+            )
+            .sections.push(
+              section
+            );
+        } else {
+          directSections.push(
+            section
+          );
+        }
+      }
+
+      const parts =
+        Array.from(
+          partResultMap.values()
+        ).sort(
+          (a, b) =>
+            Number(
+              a.displayOrder || 0
+            ) -
+            Number(
+              b.displayOrder || 0
+            )
+        );
+
       return res.json({
         success: true,
 
         data: {
-          student: {
-            _id: student._id,
-            name: student.name,
-            rollNumber: student.rollNumber
-          },
+          student:
+            submission.student,
 
           assessment: {
-            _id: assessment._id,
-            name: assessment.name,
-            code: assessment.code,
-            weekNumber: assessment.weekNumber,
-            totalMarks: assessment.totalMarks || 0,
-            batch: assessment.batch,
-            course: assessment.course
+            _id:
+              assessment._id,
+
+            name:
+              assessment.name,
+
+            code:
+              assessment.code,
+
+            weekNumber:
+              assessment.weekNumber,
+
+            hasParts:
+              Boolean(
+                assessment.hasParts
+              ),
+
+            totalMarks:
+              Number(
+                assessment.totalMarks ||
+                  0
+              ),
+
+            batch:
+              assessment.batch,
+
+            course:
+              assessment.course,
           },
 
-          status: 'PENDING',
+          status:
+            submission.status ||
+            "COMPLETED",
 
-          sections: [],
+          parts,
 
-          totalObtained: 0,
+          sections:
+            directSections,
 
-          totalMax: assessment.totalMarks || 0,
+          totalObtained:
+            Number(
+              submission.totalObtained ||
+                0
+            ),
 
-          overallPercentage: 0
-        }
+          totalMax:
+            Number(
+              submission.totalMax ||
+                0
+            ),
+
+          overallPercentage:
+            Number(
+              submission.overallPercentage ||
+                0
+            ),
+
+          submittedAt:
+            submission.submittedAt ||
+            null,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "GET STUDENT SECTION RESULTS ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: error.message,
       });
     }
-
-    // ----------------------------------------------------------
-    // FIND ANSWERS
-    // ----------------------------------------------------------
-
-    const answers = await AssessmentAnswer.find({
-      submission: submission._id
-    }).sort('questionSnapshot.displayOrder');
-
-    // ----------------------------------------------------------
-    // BUILD SECTION-WISE RESULT
-    // ----------------------------------------------------------
-
-    const sectionWise = {};
-
-    answers.forEach((answer) => {
-      const sectionName =
-        answer.questionSnapshot?.sectionName || 'General';
-
-      if (!sectionWise[sectionName]) {
-        sectionWise[sectionName] = {
-          sectionName,
-          questions: [],
-          obtained: 0,
-          max: 0
-        };
-      }
-
-      const maxPoints = Number(
-        answer.questionSnapshot?.maxPoints || 0
-      );
-
-      const awardedScore = Number(
-        answer.awardedScore || 0
-      );
-
-      sectionWise[sectionName].questions.push({
-        questionText:
-          answer.questionSnapshot?.questionText || '',
-
-        questionType:
-          answer.questionSnapshot?.questionType || '',
-
-        maxPoints,
-
-        answerValue:
-          answer.answerValue || '',
-
-        awardedScore
-      });
-
-      sectionWise[sectionName].obtained += awardedScore;
-
-      sectionWise[sectionName].max += maxPoints;
-    });
-
-    // ----------------------------------------------------------
-    // FORMAT SECTIONS
-    // ----------------------------------------------------------
-
-    const sections = Object.values(sectionWise).map(
-      (section) => ({
-        ...section,
-
-        percentage:
-          section.max > 0
-            ? Math.round(
-                (section.obtained / section.max) * 10000
-              ) / 100
-            : 0
-      })
-    );
-
-    // ----------------------------------------------------------
-    // RESPONSE
-    // ----------------------------------------------------------
-
-    return res.json({
-      success: true,
-
-      data: {
-        student: submission.student,
-
-        assessment: {
-          _id: assessment._id,
-          name: assessment.name,
-          code: assessment.code,
-          weekNumber: assessment.weekNumber,
-          totalMarks: assessment.totalMarks || 0,
-          batch: assessment.batch,
-          course: assessment.course
-        },
-
-        status: submission.status || 'COMPLETED',
-
-        sections,
-
-        totalObtained:
-          Number(submission.totalObtained || 0),
-
-        totalMax:
-          Number(
-            submission.totalMax ||
-            assessment.totalMarks ||
-            0
-          ),
-
-        overallPercentage:
-          Number(
-            submission.overallPercentage || 0
-          ),
-
-        submittedAt:
-          submission.submittedAt || null
-      }
-    });
-
-  } catch (error) {
-    console.error(
-      'GET STUDENT SECTION RESULTS ERROR:',
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
+  };
 
 // ============================================================
-// TEACHER MARKS ENTRY
-// GET STUDENTS OF ASSESSMENT BATCH
+// GET ASSESSMENT STUDENTS FOR MARKS
 // ============================================================
 
 exports.getAssessmentStudentsForMarks =
@@ -709,34 +1437,37 @@ exports.getAssessmentStudentsForMarks =
       const { search } =
         req.query;
 
-      const assessment =
-        await Assessment.findById(
-          assessmentId
-        )
-          .populate(
-            'batch',
-            'name'
-          )
-          .populate(
-            'course',
-            'name'
-          )
-          .populate(
-            'organisation',
-            'name'
-          )
-          .populate(
-            'centre',
-            'name'
-          );
+      const { assessment, error } =
+        await getAccessibleAssessment(
+          assessmentId,
+          req.user
+        );
 
-      if (!assessment) {
-        return res.status(404).json({
+      if (error) {
+        return res.status(error.status).json({
           success: false,
-          message:
-            'Assessment not found'
+          message: error.message,
         });
       }
+
+      await assessment.populate([
+        {
+          path: "batch",
+          select: "name",
+        },
+        {
+          path: "course",
+          select: "name",
+        },
+        {
+          path: "organisation",
+          select: "name",
+        },
+        {
+          path: "centre",
+          select: "name",
+        },
+      ]);
 
       const batchId =
         assessment.batch?._id ||
@@ -744,7 +1475,7 @@ exports.getAssessmentStudentsForMarks =
 
       const studentFilter = {
         batch: batchId,
-        isActive: true
+        isActive: true,
       };
 
       if (search) {
@@ -752,38 +1483,49 @@ exports.getAssessmentStudentsForMarks =
           {
             name: {
               $regex: search,
-              $options: 'i'
-            }
+              $options: "i",
+            },
           },
           {
             rollNumber: {
               $regex: search,
-              $options: 'i'
-            }
-          }
+              $options: "i",
+            },
+          },
         ];
       }
 
-      const students =
-        await Student.find(
+      const [
+        students,
+        submissions,
+        structure,
+      ] = await Promise.all([
+        Student.find(
           studentFilter
         ).sort({
-          rollNumber: 1
-        });
+          rollNumber: 1,
+        }),
 
-      const submissions =
-        await AssessmentSubmission.find({
+        AssessmentSubmission.find({
           assessment:
-            assessmentId
+            assessmentId,
         }).select(
-          'student status totalObtained totalMax overallPercentage submittedAt updatedAt'
-        );
+          "student status totalObtained totalMax overallPercentage submittedAt updatedAt partScores sectionScores"
+        ),
+
+        buildTemplateStructure(
+          assessmentId
+        ),
+      ]);
 
       const submissionMap =
         new Map();
 
       submissions.forEach(
         (submission) => {
+          if (!submission.student)
+            return;
+
           submissionMap.set(
             submission.student.toString(),
             submission
@@ -810,7 +1552,8 @@ exports.getAssessmentStudentsForMarks =
                 student.rollNumber,
 
               fatherName:
-                student.fatherName || '',
+                student.fatherName ||
+                "",
 
               submission:
                 submission
@@ -822,17 +1565,30 @@ exports.getAssessmentStudentsForMarks =
                         submission.status,
 
                       totalObtained:
-                        submission.totalObtained ||
-                        0,
+                        Number(
+                          submission.totalObtained ||
+                            0
+                        ),
 
                       totalMax:
-                        submission.totalMax ||
-                        assessment.totalMarks ||
-                        0,
+                        Number(
+                          submission.totalMax ||
+                            0
+                        ),
 
                       overallPercentage:
-                        submission.overallPercentage ||
-                        0,
+                        Number(
+                          submission.overallPercentage ||
+                            0
+                        ),
+
+                      partScores:
+                        submission.partScores ||
+                        [],
+
+                      sectionScores:
+                        submission.sectionScores ||
+                        [],
 
                       submittedAt:
                         submission.submittedAt ||
@@ -840,9 +1596,9 @@ exports.getAssessmentStudentsForMarks =
 
                       updatedAt:
                         submission.updatedAt ||
-                        null
+                        null,
                     }
-                  : null
+                  : null,
             };
           }
         );
@@ -864,8 +1620,16 @@ exports.getAssessmentStudentsForMarks =
             weekNumber:
               assessment.weekNumber,
 
+            hasParts:
+              Boolean(
+                assessment.hasParts
+              ),
+
             totalMarks:
-              assessment.totalMarks,
+              Number(
+                assessment.totalMarks ||
+                  0
+              ),
 
             status:
               assessment.status,
@@ -880,27 +1644,28 @@ exports.getAssessmentStudentsForMarks =
               assessment.organisation,
 
             centre:
-              assessment.centre
+              assessment.centre,
+
+            structure:
+              structure || null,
           },
 
           students:
-            studentData
-        }
+            studentData,
+        },
       });
-
     } catch (error) {
       console.error(
-        'GET ASSESSMENT STUDENTS FOR MARKS ERROR:',
+        "GET ASSESSMENT STUDENTS FOR MARKS ERROR:",
         error
       );
 
       return res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   };
-
 
 // ============================================================
 // GET ONE STUDENT QUESTIONS + EXISTING MARKS
@@ -911,19 +1676,19 @@ exports.getStudentMarksEntry =
     try {
       const {
         assessmentId,
-        studentId
+        studentId,
       } = req.params;
 
-      const assessment =
-        await Assessment.findById(
-          assessmentId
+      const { assessment, error } =
+        await getAccessibleAssessment(
+          assessmentId,
+          req.user
         );
 
-      if (!assessment) {
-        return res.status(404).json({
+      if (error) {
+        return res.status(error.status).json({
           success: false,
-          message:
-            'Assessment not found'
+          message: error.message,
         });
       }
 
@@ -931,85 +1696,260 @@ exports.getStudentMarksEntry =
         await Student.findOne({
           _id: studentId,
           batch: assessment.batch,
-          isActive: true
+          isActive: true,
         })
           .populate(
-            'batch',
-            'name'
+            "batch",
+            "name"
           )
           .populate(
-            'course',
-            'name'
+            "course",
+            "name"
           );
 
       if (!student) {
         return res.status(404).json({
           success: false,
           message:
-            'Student does not belong to this assessment batch'
+            "Student does not belong to this assessment batch",
         });
       }
 
-      const sections =
-        await AssessmentSection.find({
-          assessment:
-            assessmentId,
-          isActive: true
-        }).sort({
-          displayOrder: 1
-        });
+      const structure =
+        await getAssessmentStructure(
+          assessmentId
+        );
 
       const submission =
         await AssessmentSubmission.findOne({
           assessment:
             assessmentId,
+
           student:
-            studentId
+            studentId,
         });
 
-      const sectionData = [];
+      const answers =
+        submission
+          ? await AssessmentAnswer.find({
+              submission:
+                submission._id,
+            })
+          : [];
 
-      let calculatedTotalMax = 0;
+      const answerMap =
+        new Map();
 
-      for (const section of sections) {
-        const questions =
-          await AssessmentQuestion.find({
-            section:
-              section._id,
-            isActive: true
-          }).sort({
-            displayOrder: 1
-          });
-
-        const questionIds =
-          questions.map(
-            (question) =>
-              question._id
-          );
-
-        const answers =
-          submission
-            ? await AssessmentAnswer.find({
-                submission:
-                  submission._id,
-
-                question: {
-                  $in: questionIds
-                }
-              })
-            : [];
-
-        const answerMap =
-          new Map();
-
-        answers.forEach(
-          (answer) => {
+      answers.forEach(
+        (answer) => {
+          if (answer.question) {
             answerMap.set(
               answer.question.toString(),
               answer
             );
           }
+        }
+      );
+
+      // ======================================================
+      // DIRECT SECTION MODE
+      // ======================================================
+
+      if (!assessment.hasParts) {
+        const sections =
+          structure.sections.map(
+            ({
+              section,
+              questions,
+            }) => ({
+              _id:
+                section._id,
+
+              name:
+                section.name,
+
+              description:
+                section.description ||
+                "",
+
+              displayOrder:
+                section.displayOrder,
+
+              part: null,
+
+              totalMarks:
+                questions.reduce(
+                  (
+                    sum,
+                    question
+                  ) =>
+                    sum +
+                    Number(
+                      question.maxPoints ||
+                        0
+                    ),
+                  0
+                ),
+
+              questions:
+                questions.map(
+                  (question) => {
+                    const answer =
+                      answerMap.get(
+                        question._id.toString()
+                      );
+
+                    return {
+                      _id:
+                        question._id,
+
+                      questionText:
+                        question.questionText,
+
+                      questionType:
+                        question.questionType,
+
+                      maxPoints:
+                        Number(
+                          question.maxPoints ||
+                            0
+                        ),
+
+                      isRequired:
+                        question.isRequired,
+
+                      displayOrder:
+                        question.displayOrder,
+
+                      awardedScore:
+                        answer
+                          ? Number(
+                              answer.awardedScore ||
+                                0
+                            )
+                          : null,
+
+                      answerValue:
+                        answer
+                          ? answer.answerValue ??
+                            ""
+                          : "",
+                    };
+                  }
+                ),
+            })
+          );
+
+        return res.json({
+          success: true,
+
+          data: {
+            assessment: {
+              _id:
+                assessment._id,
+
+              name:
+                assessment.name,
+
+              code:
+                assessment.code,
+
+              weekNumber:
+                assessment.weekNumber,
+
+              hasParts: false,
+
+              totalMarks:
+                Number(
+                  assessment.totalMarks ||
+                    0
+                ),
+
+              status:
+                assessment.status,
+            },
+
+            student: {
+              _id:
+                student._id,
+
+              name:
+                student.name,
+
+              rollNumber:
+                student.rollNumber,
+
+              fatherName:
+                student.fatherName ||
+                "",
+
+              batch:
+                student.batch,
+
+              course:
+                student.course,
+            },
+
+            submission:
+              submission
+                ? {
+                    _id:
+                      submission._id,
+
+                    status:
+                      submission.status,
+
+                    totalObtained:
+                      Number(
+                        submission.totalObtained ||
+                          0
+                      ),
+
+                    totalMax:
+                      Number(
+                        submission.totalMax ||
+                          assessment.totalMarks ||
+                          0
+                      ),
+
+                    overallPercentage:
+                      Number(
+                        submission.overallPercentage ||
+                          0
+                      ),
+
+                    submittedAt:
+                      submission.submittedAt ||
+                      null,
+                  }
+                : null,
+
+            parts: [],
+
+            sections,
+          },
+        });
+      }
+
+      // ======================================================
+      // PART MODE
+      // ======================================================
+
+      const sectionsByPart =
+        new Map();
+
+      for (const part of structure.parts) {
+        sectionsByPart.set(
+          part._id.toString(),
+          []
         );
+      }
+
+      for (const {
+        section,
+        questions,
+      } of structure.sections) {
+        if (!section.part) continue;
 
         const sectionTotal =
           questions.reduce(
@@ -1022,65 +1962,176 @@ exports.getStudentMarksEntry =
             0
           );
 
-        calculatedTotalMax +=
-          sectionTotal;
+        sectionsByPart
+          .get(
+            section.part.toString()
+          )
+          ?.push({
+            _id:
+              section._id,
 
-        sectionData.push({
-          _id:
-            section._id,
+            name:
+              section.name,
 
-          name:
-            section.name,
+            description:
+              section.description ||
+              "",
 
-          description:
-            section.description ||
-            '',
+            displayOrder:
+              section.displayOrder,
 
-          displayOrder:
-            section.displayOrder,
+            part:
+              section.part,
 
-          totalMarks:
-            sectionTotal,
+            totalMarks:
+              sectionTotal,
 
-          questions:
-            questions.map(
-              (question) => {
-                const answer =
-                  answerMap.get(
-                    question._id.toString()
-                  );
+            questions:
+              questions.map(
+                (question) => {
+                  const answer =
+                    answerMap.get(
+                      question._id.toString()
+                    );
 
-                return {
-                  _id:
-                    question._id,
+                  return {
+                    _id:
+                      question._id,
 
-                  questionText:
-                    question.questionText,
+                    questionText:
+                      question.questionText,
 
-                  questionType:
-                    question.questionType,
+                    questionType:
+                      question.questionType,
 
-                  maxPoints:
-                    Number(
-                      question.maxPoints ||
+                    maxPoints:
+                      Number(
+                        question.maxPoints ||
+                          0
+                      ),
+
+                    isRequired:
+                      question.isRequired,
+
+                    displayOrder:
+                      question.displayOrder,
+
+                    awardedScore:
+                      answer
+                        ? Number(
+                            answer.awardedScore ||
+                              0
+                          )
+                        : null,
+
+                    answerValue:
+                      answer
+                        ? answer.answerValue ??
+                          ""
+                        : "",
+                  };
+                }
+              ),
+          });
+      }
+
+      const savedPartScores =
+        submission?.partScores ||
+        [];
+
+      const parts =
+        structure.parts.map(
+          (part) => {
+            const savedPart =
+              savedPartScores.find(
+                (item) =>
+                  item.partId &&
+                  item.partId.toString() ===
+                    part._id.toString()
+              );
+
+            return {
+              _id:
+                part._id,
+
+              name:
+                part.name,
+
+              code:
+                part.code,
+
+              description:
+                part.description ||
+                "",
+
+              isOptional:
+                Boolean(
+                  part.isOptional
+                ),
+
+              displayOrder:
+                part.displayOrder,
+
+              totalMarks:
+                Number(
+                  part.totalMarks ||
+                    0
+                ),
+
+              totalQuestions:
+                Number(
+                  part.totalQuestions ||
+                    0
+                ),
+
+              attempted:
+                savedPart
+                  ? Boolean(
+                      savedPart.attempted
+                    )
+                  : !part.isOptional,
+
+              skipped:
+                savedPart
+                  ? !Boolean(
+                      savedPart.attempted
+                    )
+                  : false,
+
+              obtainedMarks:
+                savedPart
+                  ? Number(
+                      savedPart.obtainedMarks ||
+                        0
+                    )
+                  : 0,
+
+              maxMarks:
+                savedPart
+                  ? Number(
+                      savedPart.maxMarks ||
+                        0
+                    )
+                  : Number(
+                      part.totalMarks ||
                         0
                     ),
 
-                  displayOrder:
-                    question.displayOrder,
+              percentage:
+                savedPart
+                  ? Number(
+                      savedPart.percentage ||
+                        0
+                    )
+                  : 0,
 
-                  awardedScore:
-                    answer
-                      ? Number(
-                          answer.awardedScore ||
-                            0
-                        )
-                      : null
-                };
-              }
-            )
-        });
-      }
+              sections:
+                sectionsByPart.get(
+                  part._id.toString()
+                ) || [],
+            };
+          }
+        );
 
       return res.json({
         success: true,
@@ -1099,12 +2150,16 @@ exports.getStudentMarksEntry =
             weekNumber:
               assessment.weekNumber,
 
+            hasParts: true,
+
             totalMarks:
-              assessment.totalMarks ||
-              calculatedTotalMax,
+              Number(
+                assessment.totalMarks ||
+                  0
+              ),
 
             status:
-              assessment.status
+              assessment.status,
           },
 
           student: {
@@ -1119,13 +2174,13 @@ exports.getStudentMarksEntry =
 
             fatherName:
               student.fatherName ||
-              '',
+              "",
 
             batch:
               student.batch,
 
             course:
-              student.course
+              student.course,
           },
 
           submission:
@@ -1138,44 +2193,58 @@ exports.getStudentMarksEntry =
                     submission.status,
 
                   totalObtained:
-                    submission.totalObtained ||
-                    0,
+                    Number(
+                      submission.totalObtained ||
+                        0
+                    ),
 
                   totalMax:
-                    submission.totalMax ||
-                    calculatedTotalMax,
+                    Number(
+                      submission.totalMax ||
+                        0
+                    ),
 
                   overallPercentage:
-                    submission.overallPercentage ||
-                    0,
+                    Number(
+                      submission.overallPercentage ||
+                        0
+                    ),
 
                   submittedAt:
                     submission.submittedAt ||
-                    null
+                    null,
                 }
               : null,
 
-          sections:
-            sectionData
-        }
-      });
+          parts,
 
+          sections: [],
+        },
+      });
     } catch (error) {
       console.error(
-        'GET STUDENT MARKS ENTRY ERROR:',
+        "GET STUDENT MARKS ENTRY ERROR:",
         error
       );
 
       return res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   };
 
-
 // ============================================================
 // SAVE STUDENT MARKS
+//
+// Supports:
+// 1. Assessment -> Sections -> Questions
+// 2. Assessment -> Parts -> Sections -> Questions
+//
+// Optional Part:
+// attempted=false
+// => obtained=0, max=0
+// => completely excluded from denominator
 // ============================================================
 
 exports.saveStudentMarks =
@@ -1183,18 +2252,19 @@ exports.saveStudentMarks =
     try {
       const {
         assessmentId,
-        studentId
+        studentId,
       } = req.params;
 
       const {
-        marks = []
+        marks = [],
+        partSelections = [],
       } = req.body;
 
       if (!Array.isArray(marks)) {
         return res.status(400).json({
           success: false,
           message:
-            'Marks must be an array'
+            "Marks must be an array",
         });
       }
 
@@ -1207,7 +2277,36 @@ exports.saveStudentMarks =
         return res.status(404).json({
           success: false,
           message:
-            'Assessment not found'
+            "Assessment not found",
+        });
+      }
+
+      if (
+        isTeacher(req.user) &&
+        !isTeacherAssignedToBatch(
+          req.user,
+          assessment.batch
+        )
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You are not authorized to enter marks for this assessment",
+        });
+      }
+
+      if (
+        ![
+          "PUBLISHED",
+          "CLOSED",
+        ].includes(
+          assessment.status
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Marks can only be entered for published or closed assessments",
         });
       }
 
@@ -1215,85 +2314,185 @@ exports.saveStudentMarks =
         await Student.findOne({
           _id: studentId,
           batch: assessment.batch,
-          isActive: true
+          isActive: true,
         });
 
       if (!student) {
         return res.status(400).json({
           success: false,
           message:
-            'Student does not belong to this assessment batch'
+            "Student does not belong to this assessment batch",
         });
       }
 
-      const sections =
-        await AssessmentSection.find({
-          assessment:
-            assessmentId,
-          isActive: true
-        }).sort({
-          displayOrder: 1
-        });
+      const structure =
+        await getAssessmentStructure(
+          assessmentId
+        );
 
-      if (!sections.length) {
+      if (!structure) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Assessment structure not found",
+        });
+      }
+
+      if (
+        !structure.sections.length
+      ) {
         return res.status(400).json({
           success: false,
           message:
-            'Assessment has no sections'
+            "Assessment has no sections",
         });
       }
 
-      // --------------------------------------------------------
-      // LOAD ALL QUESTIONS
-      // --------------------------------------------------------
+      const existingSubmission =
+        await AssessmentSubmission.findOne({
+          assessment:
+            assessmentId,
+
+          student:
+            studentId,
+
+          attemptNumber: 1,
+        });
+
+      // ========================================================
+      // PART SELECTION MAP
+      // ========================================================
+
+      const partSelectionMap =
+        new Map();
+
+      if (
+        Array.isArray(
+          partSelections
+        )
+      ) {
+        for (const selection of partSelections) {
+          if (
+            !selection?.partId
+          ) {
+            continue;
+          }
+
+          partSelectionMap.set(
+            selection.partId.toString(),
+            Boolean(
+              selection.attempted
+            )
+          );
+        }
+      }
+
+      // ========================================================
+      // DETERMINE PART ATTEMPT STATUS
+      // ========================================================
+
+      const partAttemptMap =
+        new Map();
+
+      if (assessment.hasParts) {
+        for (const part of structure.parts) {
+          if (!part.isOptional) {
+            // Required Part
+            partAttemptMap.set(
+              part._id.toString(),
+              true
+            );
+
+            continue;
+          }
+
+          // Explicit selection wins
+          if (
+            partSelectionMap.has(
+              part._id.toString()
+            )
+          ) {
+            partAttemptMap.set(
+              part._id.toString(),
+              partSelectionMap.get(
+                part._id.toString()
+              )
+            );
+
+            continue;
+          }
+
+          // Existing submission selection
+          const existingPart =
+            existingSubmission?.partScores?.find(
+              (item) =>
+                item.partId &&
+                item.partId.toString() ===
+                  part._id.toString()
+            );
+
+          if (existingPart) {
+            partAttemptMap.set(
+              part._id.toString(),
+              Boolean(
+                existingPart.attempted
+              )
+            );
+
+            continue;
+          }
+
+          // Default optional Part = attempted
+          partAttemptMap.set(
+            part._id.toString(),
+            true
+          );
+        }
+      }
+
+      // ========================================================
+      // ALL ACTIVE QUESTIONS
+      // ========================================================
 
       const allQuestions = [];
 
-      for (const section of sections) {
-        const questions =
-          await AssessmentQuestion.find({
-            section:
-              section._id,
-            isActive: true
-          }).sort({
-            displayOrder: 1
+      for (const {
+        section,
+        questions,
+      } of structure.sections) {
+        for (const question of questions) {
+          allQuestions.push({
+            question,
+            section,
           });
-
-        questions.forEach(
-          (question) => {
-            allQuestions.push({
-              question,
-              section
-            });
-          }
-        );
+        }
       }
 
       if (!allQuestions.length) {
         return res.status(400).json({
           success: false,
           message:
-            'Assessment has no questions'
+            "Assessment has no questions",
         });
       }
 
-      // --------------------------------------------------------
+      // ========================================================
       // MARKS MAP
-      // --------------------------------------------------------
+      // ========================================================
 
-      const marksMap =
-        new Map();
+      const marksMap = new Map();
 
       for (const item of marks) {
-        if (
-          !item.questionId
-        ) {
+        if (!item?.questionId) {
           return res.status(400).json({
             success: false,
             message:
-              'questionId is required'
+              "questionId is required",
           });
         }
+
+        const questionId =
+          item.questionId.toString();
 
         const score =
           Number(
@@ -1306,39 +2505,86 @@ exports.saveStudentMarks =
           return res.status(400).json({
             success: false,
             message:
-              'Marks must be valid numbers'
+              "Marks must be valid numbers",
           });
         }
 
         marksMap.set(
-          String(
-            item.questionId
-          ),
+          questionId,
           score
         );
       }
 
-      // --------------------------------------------------------
-      // VALIDATE EVERY QUESTION
-      // --------------------------------------------------------
+      // ========================================================
+      // VALIDATE MARKS
+      // ========================================================
 
-      for (const item of allQuestions) {
-        const question =
-          item.question;
-
-        const key =
+      for (const {
+        question,
+        section,
+      } of allQuestions) {
+        const questionId =
           question._id.toString();
 
-        if (!marksMap.has(key)) {
+        const partId =
+          section.part?.toString();
+
+        const partAttempted =
+          !assessment.hasParts ||
+          !partId ||
+          partAttemptMap.get(
+            partId
+          ) !== false;
+
+        // ------------------------------------------------------
+        // SKIPPED OPTIONAL PART
+        // ------------------------------------------------------
+
+        if (!partAttempted) {
+          // If marks are sent for skipped Part,
+          // reject instead of silently accepting.
+          if (
+            marksMap.has(
+              questionId
+            ) &&
+            Number(
+              marksMap.get(
+                questionId
+              )
+            ) !== 0
+          ) {
+            return res.status(400).json({
+              success: false,
+              message:
+                `Marks cannot be entered for skipped optional Part question: ${question.questionText}`,
+            });
+          }
+
+          continue;
+        }
+
+        // ------------------------------------------------------
+        // INCLUDED QUESTION
+        // ------------------------------------------------------
+
+        if (
+          !marksMap.has(
+            questionId
+          )
+        ) {
           return res.status(400).json({
             success: false,
             message:
-              `Marks missing for question: ${question.questionText}`
+              `Marks missing for question: ${question.questionText}`,
           });
         }
 
         const score =
-          marksMap.get(key);
+          Number(
+            marksMap.get(
+              questionId
+            )
+          );
 
         const maxPoints =
           Number(
@@ -1353,60 +2599,14 @@ exports.saveStudentMarks =
           return res.status(400).json({
             success: false,
             message:
-              `Marks for "${question.questionText}" must be between 0 and ${maxPoints}`
+              `Marks for "${question.questionText}" must be between 0 and ${maxPoints}`,
           });
         }
       }
 
-      // --------------------------------------------------------
-      // FIND / CREATE SUBMISSION
-      // --------------------------------------------------------
-
-      let submission =
-        await AssessmentSubmission.findOne({
-          assessment:
-            assessmentId,
-          student:
-            studentId,
-          attemptNumber: 1
-        });
-
-      const sectionsSnapshot =
-        sections.map(
-          (section) => {
-            const sectionQuestions =
-              allQuestions.filter(
-                (item) =>
-                  item.section._id.toString() ===
-                  section._id.toString()
-              );
-
-            const sectionTotal =
-              sectionQuestions.reduce(
-                (sum, item) =>
-                  sum +
-                  Number(
-                    item.question.maxPoints ||
-                      0
-                  ),
-                0
-              );
-
-            return {
-              sectionId:
-                section._id,
-
-              name:
-                section.name,
-
-              displayOrder:
-                section.displayOrder,
-
-              totalMarks:
-                sectionTotal
-            };
-          }
-        );
+      // ========================================================
+      // SNAPSHOT
+      // ========================================================
 
       const assessmentSnapshot = {
         name:
@@ -1418,9 +2618,120 @@ exports.saveStudentMarks =
         weekNumber:
           assessment.weekNumber,
 
+        hasParts:
+          Boolean(
+            assessment.hasParts
+          ),
+
+        parts:
+          assessment.hasParts
+            ? structure.parts.map(
+                (part) => ({
+                  partId:
+                    part._id,
+
+                  name:
+                    part.name,
+
+                  code:
+                    part.code,
+
+                  isOptional:
+                    Boolean(
+                      part.isOptional
+                    ),
+
+                  displayOrder:
+                    part.displayOrder,
+
+                  totalMarks:
+                    Number(
+                      part.totalMarks ||
+                        0
+                    ),
+
+                  totalQuestions:
+                    Number(
+                      part.totalQuestions ||
+                        0
+                    ),
+                })
+              )
+            : [],
+
         sections:
-          sectionsSnapshot
+          structure.sections.map(
+            ({
+              section,
+              questions,
+            }) => ({
+              sectionId:
+                section._id,
+
+              name:
+                section.name,
+
+              description:
+                section.description ||
+                "",
+
+              partId:
+                section.part ||
+                null,
+
+              partName:
+                assessment.hasParts &&
+                section.part
+                  ? structure.parts.find(
+                      (part) =>
+                        part._id.toString() ===
+                        section.part.toString()
+                    )?.name ||
+                    null
+                  : null,
+
+              partDisplayOrder:
+                assessment.hasParts &&
+                section.part
+                  ? Number(
+                      structure.parts.find(
+                        (part) =>
+                          part._id.toString() ===
+                          section.part.toString()
+                      )?.displayOrder ||
+                        0
+                    )
+                  : 0,
+
+              displayOrder:
+                section.displayOrder,
+
+              totalMarks:
+                questions.reduce(
+                  (
+                    sum,
+                    question
+                  ) =>
+                    sum +
+                    Number(
+                      question.maxPoints ||
+                        0
+                    ),
+                  0
+                ),
+
+              totalQuestions:
+                questions.length,
+            })
+          ),
       };
+
+      // ========================================================
+      // CREATE / UPDATE SUBMISSION
+      // ========================================================
+
+      let submission =
+        existingSubmission;
 
       if (!submission) {
         submission =
@@ -1440,157 +2751,240 @@ exports.saveStudentMarks =
             assessmentSnapshot,
 
             status:
-              'COMPLETED',
+              "COMPLETED",
 
             submittedAt:
               new Date(),
 
             submittedBy:
-              req.user?.id
+              getUserId(req),
           });
       } else {
-        submission.assessmentSnapshot =
-          assessmentSnapshot;
+        // Keep old snapshot if submission already exists.
+        // This is important for version safety.
+        if (
+          !submission.assessmentSnapshot ||
+          !submission.assessmentSnapshot
+            .sections?.length
+        ) {
+          submission.assessmentSnapshot =
+            assessmentSnapshot;
+        }
 
         submission.status =
-          'COMPLETED';
+          "COMPLETED";
 
         submission.submittedAt =
           new Date();
 
         submission.submittedBy =
-          req.user?.id;
+          getUserId(req);
       }
 
       await submission.save();
 
-      // --------------------------------------------------------
+      // ========================================================
       // DELETE OLD ANSWERS
-      // --------------------------------------------------------
+      // ========================================================
 
       await AssessmentAnswer.deleteMany({
         submission:
-          submission._id
+          submission._id,
       });
 
-      // --------------------------------------------------------
-      // CREATE ANSWERS WITH MARKS
-      // --------------------------------------------------------
+      // ========================================================
+      // CREATE ANSWERS
+      // ========================================================
 
       const answerDocuments =
-        allQuestions.map(
-          ({
-            question,
-            section
-          }) => {
-            const awardedScore =
-              marksMap.get(
-                question._id.toString()
-              );
+        [];
 
-            return {
-              submission:
-                submission._id,
+      for (const {
+        question,
+        section,
+      } of allQuestions) {
+        const questionId =
+          question._id.toString();
 
-              assessment:
-                assessmentId,
+        const partId =
+          section.part?.toString();
 
-              student:
-                studentId,
+        const partAttempted =
+          !assessment.hasParts ||
+          !partId ||
+          partAttemptMap.get(
+            partId
+          ) !== false;
 
-              question:
-                question._id,
+        const awardedScore =
+          partAttempted
+            ? Number(
+                marksMap.get(
+                  questionId
+                ) || 0
+              )
+            : 0;
 
-              section:
-                section._id,
+        const part =
+          assessment.hasParts &&
+          partId
+            ? structure.parts.find(
+                (item) =>
+                  item._id.toString() ===
+                  partId
+              )
+            : null;
 
-              questionSnapshot: {
-                questionText:
-                  question.questionText,
+        answerDocuments.push({
+          submission:
+            submission._id,
 
-                questionType:
-                  question.questionType,
+          assessment:
+            assessmentId,
 
-                maxPoints:
-                  Number(
-                    question.maxPoints ||
-                      0
+          student:
+            studentId,
+
+          question:
+            question._id,
+
+          section:
+            section._id,
+
+          part:
+            part?._id || null,
+
+          questionSnapshot: {
+            questionText:
+              question.questionText,
+
+            questionType:
+              question.questionType,
+
+            maxPoints:
+              Number(
+                question.maxPoints ||
+                  0
+              ),
+
+            sectionId:
+              section._id,
+
+            sectionName:
+              section.name,
+
+            sectionDisplayOrder:
+              section.displayOrder,
+
+            partId:
+              part?._id || null,
+
+            partName:
+              part?.name || null,
+
+            partDisplayOrder:
+              part?.displayOrder || 0,
+
+            displayOrder:
+              question.displayOrder,
+          },
+
+          partSnapshot: part
+            ? {
+                partId:
+                  part._id,
+
+                name:
+                  part.name,
+
+                code:
+                  part.code,
+
+                isOptional:
+                  Boolean(
+                    part.isOptional
                   ),
 
-                sectionName:
-                  section.name,
-
                 displayOrder:
-                  question.displayOrder
-              },
+                  part.displayOrder,
+              }
+            : undefined,
 
-              answerValue:
-                '',
+          answerValue: "",
 
-              awardedScore,
+          awardedScore,
 
-              gradedBy:
-                req.user?.id,
+          gradedBy:
+            getUserId(req),
 
-              gradedAt:
-                new Date()
-            };
-          }
+          gradedAt:
+            new Date(),
+        });
+      }
+
+      if (answerDocuments.length) {
+        await AssessmentAnswer.insertMany(
+          answerDocuments
         );
+      }
 
-      await AssessmentAnswer.insertMany(
-        answerDocuments
-      );
-
-      // --------------------------------------------------------
-      // CALCULATE SECTION + TOTAL
-      // --------------------------------------------------------
+      // ========================================================
+      // SECTION SCORES
+      // ========================================================
 
       const sectionScores =
         [];
 
-      let totalObtained = 0;
-      let totalMax = 0;
+      for (const {
+        section,
+        questions,
+      } of structure.sections) {
+        const partId =
+          section.part?.toString();
 
-      for (const section of sections) {
-        const sectionQuestions =
-          allQuestions.filter(
-            (item) =>
-              item.section._id.toString() ===
-              section._id.toString()
-          );
+        const attempted =
+          !assessment.hasParts ||
+          !partId ||
+          partAttemptMap.get(
+            partId
+          ) !== false;
 
-        const sectionObtained =
-          sectionQuestions.reduce(
-            (sum, item) =>
-              sum +
+        let obtainedMarks = 0;
+        let maxMarks = 0;
+
+        if (attempted) {
+          for (const question of questions) {
+            obtainedMarks +=
               Number(
                 marksMap.get(
-                  item.question._id.toString()
+                  question._id.toString()
                 ) || 0
-              ),
-            0
-          );
+              );
 
-        const sectionMax =
-          sectionQuestions.reduce(
-            (sum, item) =>
-              sum +
+            maxMarks +=
               Number(
-                item.question.maxPoints ||
+                question.maxPoints ||
                   0
-              ),
-            0
-          );
+              );
+          }
+        }
 
         const percentage =
-          sectionMax > 0
-            ? (
-                sectionObtained /
-                sectionMax
-              ) *
+          maxMarks > 0
+            ? (obtainedMarks /
+                maxMarks) *
               100
             : 0;
+
+        const part =
+          assessment.hasParts &&
+          partId
+            ? structure.parts.find(
+                (item) =>
+                  item._id.toString() ===
+                  partId
+              )
+            : null;
 
         sectionScores.push({
           sectionId:
@@ -1599,33 +2993,205 @@ exports.saveStudentMarks =
           sectionName:
             section.name,
 
-          obtainedMarks:
-            sectionObtained,
+          partId:
+            part?._id || null,
 
-          maxMarks:
-            sectionMax,
+          partName:
+            part?.name || null,
+
+          partDisplayOrder:
+            part?.displayOrder || 0,
+
+          displayOrder:
+            section.displayOrder,
+
+          obtainedMarks,
+
+          maxMarks,
 
           percentage:
-            Math.round(
-              percentage * 100
-            ) / 100
+            round2(
+              percentage
+            ),
         });
+      }
 
-        totalObtained +=
-          sectionObtained;
+      // ========================================================
+      // PART SCORES
+      // ========================================================
 
-        totalMax +=
-          sectionMax;
+      const partScores =
+        [];
+
+      if (assessment.hasParts) {
+        for (const part of structure.parts) {
+          const attempted =
+            partAttemptMap.get(
+              part._id.toString()
+            ) !== false;
+
+          if (!attempted) {
+            // IMPORTANT:
+            // maxMarks = 0 means this optional Part
+            // is completely excluded from final denominator.
+            partScores.push({
+              partId:
+                part._id,
+
+              partName:
+                part.name,
+
+              partCode:
+                part.code,
+
+              isOptional:
+                Boolean(
+                  part.isOptional
+                ),
+
+              attempted:
+                false,
+
+              obtainedMarks: 0,
+
+              maxMarks: 0,
+
+              percentage: 0,
+
+              displayOrder:
+                part.displayOrder,
+            });
+
+            continue;
+          }
+
+          const partSections =
+            sectionScores.filter(
+              (section) =>
+                section.partId &&
+                section.partId.toString() ===
+                  part._id.toString()
+            );
+
+          const obtainedMarks =
+            partSections.reduce(
+              (
+                sum,
+                section
+              ) =>
+                sum +
+                Number(
+                  section.obtainedMarks ||
+                    0
+                ),
+              0
+            );
+
+          const maxMarks =
+            partSections.reduce(
+              (
+                sum,
+                section
+              ) =>
+                sum +
+                Number(
+                  section.maxMarks ||
+                    0
+                ),
+              0
+            );
+
+          const percentage =
+            maxMarks > 0
+              ? (obtainedMarks /
+                  maxMarks) *
+                100
+              : 0;
+
+          partScores.push({
+            partId:
+              part._id,
+
+            partName:
+              part.name,
+
+            partCode:
+              part.code,
+
+            isOptional:
+              Boolean(
+                part.isOptional
+              ),
+
+            attempted: true,
+
+            obtainedMarks,
+
+            maxMarks,
+
+            percentage:
+              round2(
+                percentage
+              ),
+
+            displayOrder:
+              part.displayOrder,
+          });
+        }
+      }
+
+      // ========================================================
+      // OVERALL
+      //
+      // totalMax only contains ATTEMPTED parts.
+      // ========================================================
+
+      let totalObtained = 0;
+      let totalMax = 0;
+
+      if (assessment.hasParts) {
+        for (const part of partScores) {
+          if (!part.attempted) {
+            continue;
+          }
+
+          totalObtained +=
+            Number(
+              part.obtainedMarks ||
+                0
+            );
+
+          totalMax +=
+            Number(
+              part.maxMarks ||
+                0
+            );
+        }
+      } else {
+        for (const section of sectionScores) {
+          totalObtained +=
+            Number(
+              section.obtainedMarks ||
+                0
+            );
+
+          totalMax +=
+            Number(
+              section.maxMarks ||
+                0
+            );
+        }
       }
 
       const overallPercentage =
         totalMax > 0
-          ? (
-              totalObtained /
-              totalMax
-            ) *
+          ? (totalObtained /
+              totalMax) *
             100
           : 0;
+
+      submission.partScores =
+        partScores;
 
       submission.sectionScores =
         sectionScores;
@@ -1637,18 +3203,18 @@ exports.saveStudentMarks =
         totalMax;
 
       submission.overallPercentage =
-        Math.round(
-          overallPercentage * 100
-        ) / 100;
+        round2(
+          overallPercentage
+        );
 
       submission.status =
-        'COMPLETED';
+        "COMPLETED";
 
       submission.submittedAt =
         new Date();
 
       submission.submittedBy =
-        req.user?.id;
+        getUserId(req);
 
       await submission.save();
 
@@ -1656,7 +3222,7 @@ exports.saveStudentMarks =
         success: true,
 
         message:
-          'Marks saved successfully',
+          "Marks saved successfully",
 
         data: {
           submissionId:
@@ -1670,8 +3236,14 @@ exports.saveStudentMarks =
               student.name,
 
             rollNumber:
-              student.rollNumber
+              student.rollNumber,
           },
+
+          partScores:
+            submission.partScores,
+
+          sectionScores:
+            submission.sectionScores,
 
           totalObtained:
             submission.totalObtained,
@@ -1681,22 +3253,28 @@ exports.saveStudentMarks =
 
           overallPercentage:
             submission.overallPercentage,
-
-          sectionScores:
-            submission.sectionScores
-        }
+        },
       });
-
     } catch (error) {
       console.error(
-        'SAVE STUDENT MARKS ERROR:',
+        "SAVE STUDENT MARKS ERROR:",
         error
       );
 
       return res.status(500).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   };
+
+// ============================================================
+// EXPORT HELPERS
+// ============================================================
+
+exports.getAccessibleAssessment =
+  getAccessibleAssessment;
+
+exports.getAssessmentStructure =
+  getAssessmentStructure;
 

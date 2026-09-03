@@ -1,11 +1,15 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 // ============================================================
 // TOKEN
 // ============================================================
 
 const getToken = () =>
-  typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  typeof window !== "undefined"
+    ? localStorage.getItem("token")
+    : null;
 
 // ============================================================
 // COMMON REQUEST
@@ -16,9 +20,11 @@ const request = async (endpoint, options = {}) => {
 
   const headers = {
     "Content-Type": "application/json",
+
     ...(token && {
       Authorization: `Bearer ${token}`,
     }),
+
     ...options.headers,
   };
 
@@ -27,7 +33,6 @@ const request = async (endpoint, options = {}) => {
     headers,
   });
 
-  // Try JSON response
   let data;
 
   try {
@@ -40,7 +45,9 @@ const request = async (endpoint, options = {}) => {
   }
 
   if (!res.ok) {
-    throw new Error(data?.message || `Request failed (${res.status})`);
+    throw new Error(
+      data?.message || `Request failed (${res.status})`,
+    );
   }
 
   return data;
@@ -72,6 +79,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  patch: (endpoint, body) =>
+    request(endpoint, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
   delete: (endpoint) =>
     request(endpoint, {
       method: "DELETE",
@@ -99,15 +112,20 @@ export const api = {
   // HIERARCHY - READ ONLY
   // ==========================================================
 
-  getOrganisations: () => request("/auth/organisations"),
+  getOrganisations: () =>
+    request("/auth/organisations"),
 
-  getCentres: (orgId) => request(`/auth/organisations/${orgId}/centres`),
+  getCentres: (orgId) =>
+    request(`/auth/organisations/${orgId}/centres`),
 
-  getCourses: (centreId) => request(`/auth/centres/${centreId}/courses`),
+  getCourses: (centreId) =>
+    request(`/auth/centres/${centreId}/courses`),
 
-  getBatches: (courseId) => request(`/auth/courses/${courseId}/batches`),
+  getBatches: (courseId) =>
+    request(`/auth/courses/${courseId}/batches`),
 
-  getBatchStudents: (batchId) => request(`/auth/batches/${batchId}/students`),
+  getBatchStudents: (batchId) =>
+    request(`/auth/batches/${batchId}/students`),
 
   // ==========================================================
   // STUDENTS
@@ -116,16 +134,22 @@ export const api = {
   getStudents: (params = {}) => {
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) => value !== undefined && value !== null && value !== "",
+        ([, value]) =>
+          value !== undefined &&
+          value !== null &&
+          value !== "",
       ),
     );
 
     const query = new URLSearchParams(cleanParams).toString();
 
-    return request(`/org/students${query ? `?${query}` : ""}`);
+    return request(
+      `/org/students${query ? `?${query}` : ""}`,
+    );
   },
 
-  getStudent: (id) => request(`/org/students/${id}`),
+  getStudent: (id) =>
+    request(`/org/students/${id}`),
 
   createStudent: (data) =>
     request("/org/students", {
@@ -151,10 +175,13 @@ export const api = {
   getOrganisationsList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(`/org/organisations?${query}`);
+    return request(
+      `/org/organisations${query ? `?${query}` : ""}`,
+    );
   },
 
-  getOrganisation: (id) => request(`/org/organisations/${id}`),
+  getOrganisation: (id) =>
+    request(`/org/organisations/${id}`),
 
   createOrganisation: (data) =>
     request("/org/organisations", {
@@ -180,10 +207,13 @@ export const api = {
   getCentresList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(`/org/centres?${query}`);
+    return request(
+      `/org/centres${query ? `?${query}` : ""}`,
+    );
   },
 
-  getCentre: (id) => request(`/org/centres/${id}`),
+  getCentre: (id) =>
+    request(`/org/centres/${id}`),
 
   createCentre: (data) =>
     request("/org/centres", {
@@ -209,10 +239,13 @@ export const api = {
   getCoursesList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(`/org/courses?${query}`);
+    return request(
+      `/org/courses${query ? `?${query}` : ""}`,
+    );
   },
 
-  getCourse: (id) => request(`/org/courses/${id}`),
+  getCourse: (id) =>
+    request(`/org/courses/${id}`),
 
   createCourse: (data) =>
     request("/org/courses", {
@@ -238,10 +271,13 @@ export const api = {
   getBatchesList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(`/org/batches?${query}`);
+    return request(
+      `/org/batches${query ? `?${query}` : ""}`,
+    );
   },
 
-  getBatch: (id) => request(`/org/batches/${id}`),
+  getBatch: (id) =>
+    request(`/org/batches/${id}`),
 
   createBatch: (data) =>
     request("/org/batches", {
@@ -260,8 +296,8 @@ export const api = {
       method: "DELETE",
     }),
 
-      // ==========================================================
-  // USER MANAGEMENT - SUPER ADMIN
+  // ==========================================================
+  // USER MANAGEMENT
   // ==========================================================
 
   getUsers: (params = {}) => {
@@ -276,7 +312,9 @@ export const api = {
 
     const query = new URLSearchParams(cleanParams).toString();
 
-    return request(`/users${query ? `?${query}` : ""}`);
+    return request(
+      `/users${query ? `?${query}` : ""}`,
+    );
   },
 
   getUser: (id) =>
@@ -314,17 +352,30 @@ export const api = {
 
   getUserStats: () =>
     request("/users/stats"),
+
   // ==========================================================
   // ASSESSMENTS
   // ==========================================================
 
   getAssessments: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(
+        ([, value]) =>
+          value !== undefined &&
+          value !== null &&
+          value !== "",
+      ),
+    );
 
-    return request(`/assessments${query ? `?${query}` : ""}`);
+    const query = new URLSearchParams(cleanParams).toString();
+
+    return request(
+      `/assessments${query ? `?${query}` : ""}`,
+    );
   },
 
-  getAssessment: (id) => request(`/assessments/${id}`),
+  getAssessment: (id) =>
+    request(`/assessments/${id}`),
 
   createAssessment: (data) =>
     request("/assessments", {
@@ -344,10 +395,13 @@ export const api = {
     }),
 
   duplicateAssessment: (assessmentId, data) =>
-    request(`/assessments/${assessmentId}/duplicate`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    request(
+      `/assessments/${assessmentId}/duplicate`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
 
   publishAssessment: (id) =>
     request(`/assessments/${id}/publish`, {
@@ -370,17 +424,70 @@ export const api = {
       method: "POST",
     }),
 
-  getPreview: (id) => request(`/assessments/${id}/preview`),
+  getPreview: (id) =>
+    request(`/assessments/${id}/preview`),
+
+  // ==========================================================
+  // ASSESSMENT PARTS
+  // ==========================================================
+
+  // Get all parts of assessment
+  getAssessmentParts: (assessmentId) =>
+    request(
+      `/assessment-parts/assessments/${assessmentId}/parts`,
+    ),
+
+  // Get single part
+  getAssessmentPart: (partId) =>
+    request(`/assessment-parts/${partId}`),
+
+  // Create part
+  createAssessmentPart: (assessmentId, data) =>
+    request(
+      `/assessment-parts/assessments/${assessmentId}/parts`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
+
+  // Update part
+  updateAssessmentPart: (partId, data) =>
+    request(`/assessment-parts/${partId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Delete part
+  deleteAssessmentPart: (partId) =>
+    request(`/assessment-parts/${partId}`, {
+      method: "DELETE",
+    }),
+
+  // Reorder parts
+  reorderAssessmentParts: (assessmentId, parts) =>
+    request(
+      `/assessment-parts/assessments/${assessmentId}/parts/reorder`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          parts,
+        }),
+      },
+    ),
 
   // ==========================================================
   // SECTIONS
   // ==========================================================
 
   createSection: (assessmentId, data) =>
-    request(`/sections/assessments/${assessmentId}/sections`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    request(
+      `/sections/assessments/${assessmentId}/sections`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
 
   updateSection: (id, data) =>
     request(`/sections/${id}`, {
@@ -393,15 +500,29 @@ export const api = {
       method: "DELETE",
     }),
 
+  reorderSections: (assessmentId, sections) =>
+    request(
+      `/sections/assessments/${assessmentId}/sections/reorder`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          sections,
+        }),
+      },
+    ),
+
   // ==========================================================
   // QUESTIONS
   // ==========================================================
 
   createQuestion: (sectionId, data) =>
-    request(`/questions/sections/${sectionId}/questions`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    request(
+      `/questions/sections/${sectionId}/questions`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
 
   updateQuestion: (id, data) =>
     request(`/questions/${id}`, {
@@ -414,41 +535,88 @@ export const api = {
       method: "DELETE",
     }),
 
+  reorderQuestions: (sectionId, questions) =>
+    request(
+      `/questions/sections/${sectionId}/questions/reorder`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          questions,
+        }),
+      },
+    ),
+
   // ==========================================================
   // SUBMISSIONS
   // ==========================================================
 
   createSubmission: (assessmentId, data) =>
-    request(`/submissions/assessments/${assessmentId}/submissions`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    request(
+      `/submissions/assessments/${assessmentId}/submissions`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
 
   getSubmissions: (assessmentId) =>
-    request(`/submissions/assessments/${assessmentId}/submissions`),
+    request(
+      `/submissions/assessments/${assessmentId}/submissions`,
+    ),
 
-  getSubmission: (id) => request(`/submissions/${id}`),
+  getSubmission: (id) =>
+    request(`/submissions/${id}`),
 
   getCompletionStatus: (assessmentId) =>
-    request(`/submissions/assessments/${assessmentId}/completion`),
+    request(
+      `/submissions/assessments/${assessmentId}/completion`,
+    ),
 
   // ==========================================================
   // RESULTS
   // ==========================================================
 
-  getAssessmentResults: (assessmentId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
+  getAssessmentResults: (
+    assessmentId,
+    params = {},
+  ) => {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(
+        ([, value]) =>
+          value !== undefined &&
+          value !== null &&
+          value !== "",
+      ),
+    );
+
+    const query = new URLSearchParams(cleanParams).toString();
 
     return request(
-      `/results/assessments/${assessmentId}/results${query ? `?${query}` : ""}`,
+      `/results/assessments/${assessmentId}/results${
+        query ? `?${query}` : ""
+      }`,
     );
   },
 
   getStudentResults: (studentId) =>
-    request(`/results/students/${studentId}/assessment-results`),
+    request(
+      `/results/students/${studentId}/assessment-results`,
+    ),
 
-  getBatchResults: (batchId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
+  getBatchResults: (
+    batchId,
+    params = {},
+  ) => {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(
+        ([, value]) =>
+          value !== undefined &&
+          value !== null &&
+          value !== "",
+      ),
+    );
+
+    const query = new URLSearchParams(cleanParams).toString();
 
     return request(
       `/results/batches/${batchId}/assessment-results${
@@ -457,38 +625,62 @@ export const api = {
     );
   },
 
-  getStudentSectionResults: (assessmentId, studentId) =>
+  getStudentSectionResults: (
+    assessmentId,
+    studentId,
+  ) =>
     request(
       `/results/assessments/${assessmentId}/students/${studentId}/sections`,
     ),
 
   // ==========================================================
-  // EXCEL - EXPORT
+  // MARKS ENTRY
   // ==========================================================
 
-  exportTemplate: (assessmentId) => {
-    const token = getToken();
+  getAssessmentStudentsForMarks: (
+    assessmentId,
+    search = "",
+  ) =>
+    request(
+      `/results/assessments/${assessmentId}/marks/students${
+        search
+          ? `?search=${encodeURIComponent(search)}`
+          : ""
+      }`,
+    ),
 
-    window.open(
-      `${API_BASE}/excel/assessments/${assessmentId}/export-template?token=${token}`,
-      "_blank",
-    );
-  },
-
-  exportResults: (assessmentId) => {
-    const token = getToken();
-
-    window.open(
-      `${API_BASE}/excel/assessments/${assessmentId}/export-results?token=${token}`,
-      "_blank",
-    );
-  },
+  getStudentMarksEntry: (
+    assessmentId,
+    studentId,
+  ) =>
+    request(
+      `/results/assessments/${assessmentId}/marks/students/${studentId}`,
+    ),
 
   // ==========================================================
-  // EXCEL - IMPORT MARKS
+  // SAVE STUDENT MARKS
   // ==========================================================
+
+  saveStudentMarks: (
+    assessmentId,
+    studentId,
+    marks,
+    partSelections = [],
+  ) =>
+    request(
+      `/results/assessments/${assessmentId}/marks/students/${studentId}`,
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          marks,
+          partSelections,
+        }),
+      },
+    ),
+
   // ==========================================================
-  // EXCEL - EXPORT
+  // EXCEL - EXPORT TEMPLATE
   // ==========================================================
 
   exportTemplate: async (assessmentId) => {
@@ -500,6 +692,7 @@ export const api = {
       `${API_BASE}/excel/assessments/${assessmentId}/export-template`,
       {
         method: "GET",
+
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -511,7 +704,9 @@ export const api = {
 
       try {
         const data = await res.json();
-        message = data?.message || message;
+
+        message =
+          data?.message || message;
       } catch {}
 
       throw new Error(message);
@@ -519,33 +714,46 @@ export const api = {
 
     const blob = await res.blob();
 
-    const contentDisposition = res.headers.get("Content-Disposition");
+    const contentDisposition =
+      res.headers.get("Content-Disposition");
 
-    let filename = "assessment-template.xlsx";
+    let filename =
+      "assessment-template.xlsx";
 
     if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const match =
+        contentDisposition.match(
+          /filename="?([^"]+)"?/i,
+        );
 
       if (match?.[1]) {
         filename = match[1];
       }
     }
 
-    const url = window.URL.createObjectURL(blob);
+    const url =
+      window.URL.createObjectURL(blob);
 
-    const a = document.createElement("a");
+    const a =
+      document.createElement("a");
 
     a.href = url;
     a.download = filename;
 
     document.body.appendChild(a);
+
     a.click();
+
     a.remove();
 
     window.URL.revokeObjectURL(url);
 
     return true;
   },
+
+  // ==========================================================
+  // EXCEL - EXPORT RESULTS
+  // ==========================================================
 
   exportResults: async (assessmentId) => {
     if (!assessmentId) {
@@ -556,6 +764,7 @@ export const api = {
       `${API_BASE}/excel/assessments/${assessmentId}/export-results`,
       {
         method: "GET",
+
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -563,11 +772,14 @@ export const api = {
     );
 
     if (!res.ok) {
-      let message = "Failed to export results";
+      let message =
+        "Failed to export results";
 
       try {
         const data = await res.json();
-        message = data?.message || message;
+
+        message =
+          data?.message || message;
       } catch {}
 
       throw new Error(message);
@@ -575,27 +787,36 @@ export const api = {
 
     const blob = await res.blob();
 
-    const contentDisposition = res.headers.get("Content-Disposition");
+    const contentDisposition =
+      res.headers.get("Content-Disposition");
 
-    let filename = "assessment-results.xlsx";
+    let filename =
+      "assessment-results.xlsx";
 
     if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const match =
+        contentDisposition.match(
+          /filename="?([^"]+)"?/i,
+        );
 
       if (match?.[1]) {
         filename = match[1];
       }
     }
 
-    const url = window.URL.createObjectURL(blob);
+    const url =
+      window.URL.createObjectURL(blob);
 
-    const a = document.createElement("a");
+    const a =
+      document.createElement("a");
 
     a.href = url;
     a.download = filename;
 
     document.body.appendChild(a);
+
     a.click();
+
     a.remove();
 
     window.URL.revokeObjectURL(url);
@@ -607,28 +828,49 @@ export const api = {
   // EXCEL - IMPORT MARKS
   // ==========================================================
 
-  importMarks: async (assessmentId, file) => {
+  importMarks: async (
+    assessmentId,
+    file,
+  ) => {
     if (!assessmentId) {
-      throw new Error("Assessment is required");
+      throw new Error(
+        "Assessment is required",
+      );
     }
 
     if (!file) {
-      throw new Error("Please select an Excel file");
+      throw new Error(
+        "Please select an Excel file",
+      );
     }
 
-    const allowedTypes = [".xlsx", ".xls", ".csv"];
+    const allowedTypes = [
+      ".xlsx",
+      ".xls",
+      ".csv",
+    ];
 
-    const fileName = file.name.toLowerCase();
+    const fileName =
+      file.name.toLowerCase();
 
-    const isAllowed = allowedTypes.some((ext) => fileName.endsWith(ext));
+    const isAllowed =
+      allowedTypes.some((ext) =>
+        fileName.endsWith(ext),
+      );
 
     if (!isAllowed) {
-      throw new Error("Please select a valid Excel file (.xlsx, .xls or .csv)");
+      throw new Error(
+        "Please select a valid Excel file (.xlsx, .xls or .csv)",
+      );
     }
 
-    const formData = new FormData();
+    const formData =
+      new FormData();
 
-    formData.append("file", file);
+    formData.append(
+      "file",
+      file,
+    );
 
     const res = await fetch(
       `${API_BASE}/excel/assessments/${assessmentId}/import-marks`,
@@ -648,11 +890,19 @@ export const api = {
     try {
       data = await res.json();
     } catch {
-      throw new Error("Server returned an invalid response");
+      throw new Error(
+        "Server returned an invalid response",
+      );
     }
 
-    if (!res.ok || data?.success === false) {
-      throw new Error(data?.message || `Marks import failed (${res.status})`);
+    if (
+      !res.ok ||
+      data?.success === false
+    ) {
+      throw new Error(
+        data?.message ||
+          `Marks import failed (${res.status})`,
+      );
     }
 
     return data;
@@ -662,41 +912,66 @@ export const api = {
   // EXCEL - IMPORT STUDENTS
   // ==========================================================
 
-  importStudents: async (batchId, file) => {
+  importStudents: async (
+    batchId,
+    file,
+  ) => {
     if (!batchId) {
-      throw new Error("Please select a Batch before importing students.");
+      throw new Error(
+        "Please select a Batch before importing students.",
+      );
     }
 
     if (!file) {
-      throw new Error("Please select an Excel/CSV file.");
+      throw new Error(
+        "Please select an Excel/CSV file.",
+      );
     }
 
-    const formData = new FormData();
+    const formData =
+      new FormData();
 
-    formData.append("file", file);
+    formData.append(
+      "file",
+      file,
+    );
 
-    formData.append("batchId", batchId);
+    formData.append(
+      "batchId",
+      batchId,
+    );
 
-    const res = await fetch(`${API_BASE}/excel/import-students`, {
-      method: "POST",
+    const res = await fetch(
+      `${API_BASE}/excel/import-students`,
+      {
+        method: "POST",
 
-      headers: {
-        Authorization: `Bearer ${getToken()}`,
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+
+        body: formData,
       },
-
-      body: formData,
-    });
+    );
 
     let data;
 
     try {
       data = await res.json();
     } catch {
-      throw new Error("Server returned an invalid response.");
+      throw new Error(
+        "Server returned an invalid response.",
+      );
     }
 
-    if (!res.ok || data?.success === false) {
-      throw new Error(data?.message || `Student import failed (${res.status})`);
+    if (
+      !res.ok ||
+      data?.success === false
+    ) {
+      throw new Error(
+        data?.message ||
+          `Student import failed (${res.status})`,
+      );
     }
 
     return data;
@@ -706,13 +981,19 @@ export const api = {
   // DOWNLOAD STUDENT TEMPLATE
   // ==========================================================
 
-  downloadStudentTemplate: async (batchId) => {
+  downloadStudentTemplate: async (
+    batchId,
+  ) => {
     if (!batchId) {
-      throw new Error("Please select a Batch first.");
+      throw new Error(
+        "Please select a Batch first.",
+      );
     }
 
     const res = await fetch(
-      `${API_BASE}/excel/student-template?batchId=${encodeURIComponent(batchId)}`,
+      `${API_BASE}/excel/student-template?batchId=${encodeURIComponent(
+        batchId,
+      )}`,
       {
         method: "GET",
 
@@ -723,39 +1004,53 @@ export const api = {
     );
 
     if (!res.ok) {
-      let message = "Failed to download student template";
+      let message =
+        "Failed to download student template";
 
       try {
-        const data = await res.json();
+        const data =
+          await res.json();
 
-        message = data?.message || message;
+        message =
+          data?.message || message;
       } catch {}
 
       throw new Error(message);
     }
 
-    const blob = await res.blob();
+    const blob =
+      await res.blob();
 
-    const contentDisposition = res.headers.get("Content-Disposition");
+    const contentDisposition =
+      res.headers.get(
+        "Content-Disposition",
+      );
 
-    let filename = "student-import-template.xlsx";
+    let filename =
+      "student-import-template.xlsx";
 
     if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const match =
+        contentDisposition.match(
+          /filename="?([^"]+)"?/i,
+        );
 
       if (match?.[1]) {
         filename = match[1];
       }
     }
 
-    const url = window.URL.createObjectURL(blob);
+    const url =
+      window.URL.createObjectURL(blob);
 
-    const a = document.createElement("a");
+    const a =
+      document.createElement("a");
 
     a.href = url;
     a.download = filename;
 
     document.body.appendChild(a);
+
     a.click();
 
     a.remove();
@@ -764,25 +1059,5 @@ export const api = {
 
     return true;
   },
-
-  getAssessmentStudentsForMarks: (assessmentId, search = "") =>
-    request(
-      `/results/assessments/${assessmentId}/marks/students${
-        search ? `?search=${encodeURIComponent(search)}` : ""
-      }`,
-    ),
-
-  getStudentMarksEntry: (assessmentId, studentId) =>
-    request(`/results/assessments/${assessmentId}/marks/students/${studentId}`),
-
-  saveStudentMarks: (assessmentId, studentId, marks) =>
-    request(
-      `/results/assessments/${assessmentId}/marks/students/${studentId}`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          marks,
-        }),
-      },
-    ),
 };
+

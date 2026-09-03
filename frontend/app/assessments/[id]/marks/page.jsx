@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -15,8 +14,8 @@ import {
   CardContent,
   Checkbox,
   Chip,
-  Divider,
   CircularProgress,
+  Divider,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -44,11 +43,7 @@ export default function TeacherMarksPage() {
   const params = useParams();
   const router = useRouter();
 
-  const assessmentId = params.id;
-
-  // ==========================================================
-  // STATE
-  // ==========================================================
+  const assessmentId = params?.id;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,35 +60,207 @@ export default function TeacherMarksPage() {
   const [marksData, setMarksData] = useState(null);
 
   /*
-   * answers:
-   *
    * {
    *   questionId: "YES",
-   *   questionId2: "Option A",
-   *   questionId3: ["Option A", "Option B"]
+   *   questionId2: "NO",
+   *   questionId3: "Option A",
+   *   questionId4: ["A", "B"]
    * }
    */
   const [answers, setAnswers] = useState({});
 
   /*
-   * awardedMarks:
-   *
    * {
    *   questionId: 1,
    *   questionId2: 0
    * }
+   *
+   * Only used internally for YES/NO automatic display.
+   * Backend remains final authority.
    */
   const [awardedMarks, setAwardedMarks] =
+    useState({});
+
+  /*
+   * {
+   *   partId: true,
+   *   partId2: false
+   * }
+   *
+   * true  = attempt
+   * false = skip optional part
+   */
+  const [partSelections, setPartSelections] =
     useState({});
 
   const [assessmentSubmitted, setAssessmentSubmitted] =
     useState(false);
 
   // ==========================================================
+  // HELPERS
+  // ==========================================================
+
+  const hasParts = Boolean(
+    marksData?.assessment?.hasParts ??
+      assessment?.hasParts
+  );
+
+  const getParts = () => {
+    if (!marksData) return [];
+
+    if (Array.isArray(marksData.parts)) {
+      return marksData.parts;
+    }
+
+    return [];
+  };
+
+  const getSections = () => {
+    if (!marksData) return [];
+
+    return Array.isArray(marksData.sections)
+      ? marksData.sections
+      : [];
+  };
+
+  const getAllQuestions = () => {
+    const result = [];
+
+    if (hasParts) {
+      getParts().forEach((part) => {
+        (part.sections || []).forEach((section) => {
+          (section.questions || []).forEach((question) => {
+            result.push({
+              ...question,
+              partId:
+                question.partId ||
+                part._id ||
+                part.partId,
+              sectionId:
+                question.sectionId ||
+                section._id ||
+                section.sectionId,
+              part,
+              section,
+            });
+          });
+        });
+      });
+
+      return result;
+    }
+
+    getSections().forEach((section) => {
+      (section.questions || []).forEach((question) => {
+        result.push({
+          ...question,
+          sectionId:
+            question.sectionId ||
+            section._id ||
+            section.sectionId,
+          section,
+        });
+      });
+    });
+
+    return result;
+  };
+
+  const isPartAttempted = (part) => {
+    const partId =
+      part?._id ||
+      part?.partId;
+
+    if (!partId) return true;
+
+    if (!part.isOptional) {
+      return true;
+    }
+
+    /*
+     * Existing backend data can use:
+     * attempted
+     * selected
+     * isAttempted
+     *
+     * Support all.
+     */
+    if (
+      partSelections[partId] !== undefined
+    ) {
+      return Boolean(partSelections[partId]);
+    }
+
+    if (
+      part.attempted !== undefined
+    ) {
+      return Boolean(part.attempted);
+    }
+
+    if (
+      part.selected !== undefined
+    ) {
+      return Boolean(part.selected);
+    }
+
+    if (
+      part.isAttempted !== undefined
+    ) {
+      return Boolean(part.isAttempted);
+    }
+
+    /*
+     * Default optional part = attempted.
+     * Teacher can explicitly skip it.
+     */
+    return true;
+  };
+
+  const getQuestionMax = (question) =>
+    Number(question?.maxPoints || 0);
+
+  const calculateQuestionMark = (question) => {
+    const answer = answers[question._id];
+
+    if (
+      question.questionType === "YES_NO"
+    ) {
+      const normalized = String(
+        answer || ""
+      ).toUpperCase();
+
+      if (normalized === "YES") {
+        return getQuestionMax(question);
+      }
+
+      if (normalized === "NO") {
+        return 0;
+      }
+
+      return "";
+    }
+
+    const marks =
+      awardedMarks[question._id];
+
+    if (
+      marks === undefined ||
+      marks === null ||
+      marks === ""
+    ) {
+      return "";
+    }
+
+    return Number(marks);
+  };
+
+  // ==========================================================
   // LOAD STUDENTS
   // ==========================================================
 
   const loadStudents = async () => {
+    if (!assessmentId) return;
+
     try {
       setLoading(true);
       setError("");
@@ -105,8 +272,13 @@ export default function TeacherMarksPage() {
 
       const data = response?.data || {};
 
-      setAssessment(data.assessment || null);
-      setStudents(data.students || []);
+      setAssessment(
+        data.assessment || null
+      );
+
+      setStudents(
+        data.students || []
+      );
     } catch (err) {
       console.error(
         "LOAD ASSESSMENT STUDENTS ERROR:",
@@ -126,11 +298,14 @@ export default function TeacherMarksPage() {
   // LOAD STUDENT MARKS
   // ==========================================================
 
-  const loadStudentMarks = async (studentId) => {
+  const loadStudentMarks = async (
+    studentId
+  ) => {
     if (!studentId) {
       setMarksData(null);
       setAnswers({});
       setAwardedMarks({});
+      setPartSelections({});
       return;
     }
 
@@ -145,67 +320,133 @@ export default function TeacherMarksPage() {
           studentId
         );
 
-      const data = response?.data || {};
+      const data =
+        response?.data || {};
 
       setMarksData(data);
 
       const initialAnswers = {};
       const initialMarks = {};
+      const initialPartSelections = {};
 
       /*
-       * Load previously saved answers and marks
+       * Load optional part selections.
        */
+      (
+        data.parts || []
+      ).forEach((part) => {
+        const partId =
+          part._id ||
+          part.partId;
 
-      (data.sections || []).forEach(
-        (section) => {
-          (section.questions || []).forEach(
-            (question) => {
-              /*
-               * Existing awarded marks
-               */
+        if (!partId) return;
 
+        if (
+          part.attempted !== undefined
+        ) {
+          initialPartSelections[
+            partId
+          ] = Boolean(
+            part.attempted
+          );
+        } else if (
+          part.selected !== undefined
+        ) {
+          initialPartSelections[
+            partId
+          ] = Boolean(
+            part.selected
+          );
+        } else if (
+          part.isAttempted !== undefined
+        ) {
+          initialPartSelections[
+            partId
+          ] = Boolean(
+            part.isAttempted
+          );
+        } else if (
+          part.isOptional
+        ) {
+          initialPartSelections[
+            partId
+          ] = true;
+        }
+      });
+
+      /*
+       * New nested structure:
+       *
+       * parts
+       *   sections
+       *     questions
+       */
+      if (
+        Array.isArray(data.parts)
+      ) {
+        data.parts.forEach((part) => {
+          (
+            part.sections || []
+          ).forEach((section) => {
+            (
+              section.questions || []
+            ).forEach((question) => {
               if (
-                question.awardedScore !== null &&
-                question.awardedScore !== undefined
-              ) {
-                initialMarks[question._id] =
-                  Number(
-                    question.awardedScore
-                  );
-              }
-
-              /*
-               * Existing answer
-               */
-
-              if (
-                question.answerValue !== null &&
-                question.answerValue !== undefined
-              ) {
-                initialAnswers[question._id] =
-                  question.answerValue;
-              }
-
-              /*
-               * Backward compatibility:
-               *
-               * If YES_NO question does not have
-               * answerValue but has marks:
-               */
-
-              if (
-                question.questionType ===
-                  "YES_NO" &&
-                initialAnswers[question._id] ===
-                  undefined &&
                 question.awardedScore !==
                   null &&
                 question.awardedScore !==
                   undefined
               ) {
-                const maxPoints = Number(
-                  question.maxPoints || 0
+                initialMarks[
+                  question._id
+                ] = Number(
+                  question.awardedScore
                 );
+              }
+
+              /*
+               * FIX: backend sends answerValue: ""
+               * for YES_NO questions (they don't use
+               * a free-text/choice answerValue at all —
+               * their answer is derived from awardedScore).
+               * Treat "" the same as null/undefined so we
+               * don't accidentally "lock in" an empty
+               * answer and skip the YES_NO derivation
+               * block below.
+               */
+              if (
+                question.answerValue !==
+                  null &&
+                question.answerValue !==
+                  undefined &&
+                question.answerValue !== ""
+              ) {
+                initialAnswers[
+                  question._id
+                ] =
+                  question.answerValue;
+              }
+
+              /*
+               * Backward compatibility
+               * for YES_NO.
+               */
+              if (
+                question.questionType ===
+                  "YES_NO" &&
+                initialAnswers[
+                  question._id
+                ] === undefined &&
+                question.awardedScore !==
+                  null &&
+                question.awardedScore !==
+                  undefined
+              ) {
+                const maxPoints =
+                  Number(
+                    question.maxPoints ||
+                      0
+                  );
 
                 initialAnswers[
                   question._id
@@ -216,13 +457,107 @@ export default function TeacherMarksPage() {
                     ? "YES"
                     : "NO";
               }
-            }
+            });
+          });
+        });
+      }
+
+      /*
+       * Direct section structure.
+       */
+      (
+        data.sections || []
+      ).forEach((section) => {
+        (
+          section.questions || []
+        ).forEach((question) => {
+          if (
+            question.awardedScore !==
+              null &&
+            question.awardedScore !==
+              undefined
+          ) {
+            initialMarks[
+              question._id
+            ] = Number(
+              question.awardedScore
+            );
+          }
+
+          /*
+           * FIX: same "" guard as above, for the
+           * direct-section (no parts) structure.
+           */
+          if (
+            question.answerValue !==
+              null &&
+            question.answerValue !==
+              undefined &&
+            question.answerValue !== ""
+          ) {
+            initialAnswers[
+              question._id
+            ] =
+              question.answerValue;
+          }
+
+          if (
+            question.questionType ===
+              "YES_NO" &&
+            initialAnswers[
+              question._id
+            ] === undefined &&
+            question.awardedScore !==
+              null &&
+            question.awardedScore !==
+              undefined
+          ) {
+            const maxPoints =
+              Number(
+                question.maxPoints || 0
+              );
+
+            initialAnswers[
+              question._id
+            ] =
+              Number(
+                question.awardedScore
+              ) === maxPoints
+                ? "YES"
+                : "NO";
+          }
+        });
+      });
+
+      /*
+       * If backend returns partScores,
+       * use them for optional-part state.
+       */
+      (
+        data.partScores || []
+      ).forEach((partScore) => {
+        const partId =
+          partScore.partId;
+
+        if (!partId) return;
+
+        if (
+          partScore.attempted !==
+          undefined
+        ) {
+          initialPartSelections[
+            partId
+          ] = Boolean(
+            partScore.attempted
           );
         }
-      );
+      });
 
       setAnswers(initialAnswers);
       setAwardedMarks(initialMarks);
+      setPartSelections(
+        initialPartSelections
+      );
     } catch (err) {
       console.error(
         "LOAD STUDENT MARKS ERROR:",
@@ -252,12 +587,36 @@ export default function TeacherMarksPage() {
   // STUDENT CHANGE
   // ==========================================================
 
-  const handleStudentChange = async (event) => {
-    const studentId = event.target.value;
+  const handleStudentChange = async (
+    event
+  ) => {
+    const studentId =
+      event.target.value;
 
-    setSelectedStudentId(studentId);
+    setSelectedStudentId(
+      studentId
+    );
 
-    await loadStudentMarks(studentId);
+    await loadStudentMarks(
+      studentId
+    );
+  };
+
+  // ==========================================================
+  // PART CHANGE
+  // ==========================================================
+
+  const handlePartSelectionChange = (
+    partId,
+    value
+  ) => {
+    setPartSelections((prev) => ({
+      ...prev,
+      [partId]: Boolean(value),
+    }));
+
+    setError("");
+    setSuccess("");
   };
 
   // ==========================================================
@@ -274,15 +633,19 @@ export default function TeacherMarksPage() {
       [questionId]: value,
     }));
 
-    // YES = full marks, NO = zero marks.
-    // Teacher does not need to enter awarded marks manually.
+    /*
+     * YES/NO automatic marks.
+     * No manual awarded marks field.
+     */
     if (maxPoints !== null) {
       setAwardedMarks((prev) => ({
         ...prev,
         [questionId]:
-          String(value).toUpperCase() === "YES"
+          String(value).toUpperCase() ===
+          "YES"
             ? Number(maxPoints)
-            : String(value).toUpperCase() === "NO"
+            : String(value).toUpperCase() ===
+              "NO"
             ? 0
             : "",
       }));
@@ -296,7 +659,9 @@ export default function TeacherMarksPage() {
   // QUESTION TYPE LABEL
   // ==========================================================
 
-  const getQuestionTypeLabel = (type) => {
+  const getQuestionTypeLabel = (
+    type
+  ) => {
     switch (type) {
       case "YES_NO":
         return "Yes / No";
@@ -334,30 +699,82 @@ export default function TeacherMarksPage() {
     let obtained = 0;
     let max = 0;
 
-    (marksData.sections || []).forEach(
-      (section) => {
-        (section.questions || []).forEach(
-          (question) => {
-            const maxPoints = Number(
-              question.maxPoints || 0
-            );
+    /*
+     * PART MODE
+     */
+    if (hasParts) {
+      getParts().forEach((part) => {
+        if (
+          part.isOptional &&
+          !isPartAttempted(part)
+        ) {
+          return;
+        }
+
+        (
+          part.sections || []
+        ).forEach((section) => {
+          (
+            section.questions || []
+          ).forEach((question) => {
+            const maxPoints =
+              getQuestionMax(
+                question
+              );
 
             max += maxPoints;
 
             const marks =
-              awardedMarks[question._id];
+              calculateQuestionMark(
+                question
+              );
 
             if (
-              marks !== undefined &&
+              marks !== "" &&
               marks !== null &&
-              marks !== ""
+              marks !== undefined
             ) {
-              obtained += Number(marks);
+              obtained += Number(
+                marks
+              );
             }
-          }
-        );
-      }
-    );
+          });
+        });
+      });
+    } else {
+      /*
+       * DIRECT SECTION MODE
+       */
+      getSections().forEach(
+        (section) => {
+          (
+            section.questions || []
+          ).forEach((question) => {
+            const maxPoints =
+              getQuestionMax(
+                question
+              );
+
+            max += maxPoints;
+
+            const marks =
+              calculateQuestionMark(
+                question
+              );
+
+            if (
+              marks !== "" &&
+              marks !== null &&
+              marks !== undefined
+            ) {
+              obtained += Number(
+                marks
+              );
+            }
+          });
+        }
+      );
+    }
 
     return {
       obtained,
@@ -367,54 +784,159 @@ export default function TeacherMarksPage() {
           ? (obtained / max) * 100
           : 0,
     };
-  }, [marksData, awardedMarks]);
+  }, [
+    marksData,
+    answers,
+    awardedMarks,
+    partSelections,
+    hasParts,
+  ]);
 
   // ==========================================================
-  // CHECK ALL QUESTIONS MARKED
+  // CHECK QUESTIONS
   // ==========================================================
 
-  const allQuestionsAnswered = useMemo(() => {
-    if (!marksData) return false;
+  const allQuestionsAnswered =
+    useMemo(() => {
+      if (!marksData) return false;
 
-    const questions = [];
+      const questions = [];
 
-    (marksData.sections || []).forEach(
-      (section) => {
-        (section.questions || []).forEach(
-          (question) => {
-            questions.push(question);
+      if (hasParts) {
+        getParts().forEach(
+          (part) => {
+            if (
+              part.isOptional &&
+              !isPartAttempted(part)
+            ) {
+              return;
+            }
+
+            (
+              part.sections || []
+            ).forEach((section) => {
+              (
+                section.questions || []
+              ).forEach((question) => {
+                questions.push(
+                  question
+                );
+              });
+            });
+          }
+        );
+      } else {
+        getSections().forEach(
+          (section) => {
+            (
+              section.questions || []
+            ).forEach((question) => {
+              questions.push(
+                question
+              );
+            });
           }
         );
       }
-    );
 
-    if (questions.length === 0) {
-      return false;
-    }
+      if (questions.length === 0) {
+        return false;
+      }
 
-    return questions.every((question) => {
-      const marks =
-        awardedMarks[question._id];
+      return questions.every(
+        (question) => {
+          const answer =
+            answers[
+              question._id
+            ];
 
-      return (
-        marks !== undefined &&
-        marks !== null &&
-        marks !== "" &&
-        Number(marks) >= 0 &&
-        Number(marks) <=
-          Number(question.maxPoints || 0)
+          /*
+           * YES/NO
+           */
+          if (
+            question.questionType ===
+            "YES_NO"
+          ) {
+            return (
+              answer === "YES" ||
+              answer === "NO"
+            );
+          }
+
+          /*
+           * TEXT
+           */
+          if (
+            question.questionType ===
+            "TEXT"
+          ) {
+            return (
+              typeof answer ===
+                "string" &&
+              answer.trim() !== ""
+            );
+          }
+
+          /*
+           * NUMBER
+           */
+          if (
+            question.questionType ===
+            "NUMBER"
+          ) {
+            return (
+              answer !== undefined &&
+              answer !== null &&
+              String(answer).trim() !== ""
+            );
+          }
+
+          /*
+           * SINGLE CHOICE
+           */
+          if (
+            question.questionType ===
+            "SINGLE_CHOICE"
+          ) {
+            return (
+              answer !== undefined &&
+              answer !== null &&
+              String(answer).trim() !== ""
+            );
+          }
+
+          /*
+           * MULTIPLE CHOICE
+           */
+          if (
+            question.questionType ===
+            "MULTIPLE_CHOICE"
+          ) {
+            return (
+              Array.isArray(answer) &&
+              answer.length > 0
+            );
+          }
+
+          return true;
+        }
       );
-    });
-  }, [marksData, awardedMarks]);
+    }, [
+      marksData,
+      answers,
+      partSelections,
+      hasParts,
+    ]);
 
   // ==========================================================
-  // CURRENT STUDENT INDEX
+  // CURRENT STUDENT
   // ==========================================================
 
   const currentStudentIndex =
     students.findIndex(
       (student) =>
-        student._id === selectedStudentId
+        student._id ===
+        selectedStudentId
     );
 
   const isLastStudent =
@@ -425,186 +947,415 @@ export default function TeacherMarksPage() {
     currentStudentIndex <= 0;
 
   // ==========================================================
+  // BUILD MARK PAYLOAD
+  // ==========================================================
+
+  const buildMarkPayload = () => {
+    const payload = [];
+
+    const questions =
+      getAllQuestions();
+
+    for (const question of questions) {
+      const part =
+        question.part;
+
+      /*
+       * Optional skipped part:
+       * don't send question marks.
+       */
+      if (
+        part &&
+        part.isOptional &&
+        !isPartAttempted(part)
+      ) {
+        continue;
+      }
+
+      const marks =
+        calculateQuestionMark(
+          question
+        );
+
+      /*
+       * For automatic YES/NO,
+       * marks must exist.
+       */
+      if (
+        marks === undefined ||
+        marks === null ||
+        marks === ""
+      ) {
+        /*
+         * Only required questions block.
+         */
+        if (
+          question.isRequired
+        ) {
+          throw new Error(
+            `Please enter answer for: ${question.questionText}`
+          );
+        }
+
+        /*
+         * Optional question:
+         * backend can treat unanswered
+         * according to its validation.
+         */
+        continue;
+      }
+
+      const numericMarks =
+        Number(marks);
+
+      const maxPoints =
+        getQuestionMax(
+          question
+        );
+
+      if (
+        Number.isNaN(
+          numericMarks
+        ) ||
+        numericMarks < 0 ||
+        numericMarks > maxPoints
+      ) {
+        throw new Error(
+          `Invalid marks for: ${question.questionText}. Maximum marks are ${maxPoints}.`
+        );
+      }
+
+      payload.push({
+        questionId:
+          question._id,
+        awardedScore:
+          numericMarks,
+        answerValue:
+          answers[
+            question._id
+          ],
+      });
+    }
+
+    return payload;
+  };
+
+  // ==========================================================
+  // BUILD PART SELECTION PAYLOAD
+  // ==========================================================
+
+  const buildPartSelectionPayload =
+    () => {
+      if (!hasParts) {
+        return [];
+      }
+
+      return getParts().map(
+        (part) => {
+          const partId =
+            part._id ||
+            part.partId;
+
+          return {
+            partId,
+            attempted:
+              part.isOptional
+                ? isPartAttempted(
+                    part
+                  )
+                : true,
+          };
+        }
+      );
+    };
+
+  // ==========================================================
   // SAVE CURRENT STUDENT
   // ==========================================================
 
-  const saveCurrentStudentMarks = async () => {
-    if (!selectedStudentId) {
-      setError("Please select a student");
-      return false;
-    }
-
-    if (!marksData) {
-      setError(
-        "Student marks data not loaded"
-      );
-      return false;
-    }
-
-    const markPayload = [];
-
-    for (
-      const section of
-        marksData.sections || []
-    ) {
-      for (
-        const question of
-          section.questions || []
-      ) {
-        const marks =
-          awardedMarks[question._id];
-
-        if (
-          marks === undefined ||
-          marks === null ||
-          marks === ""
-        ) {
-          setError(
-            `Please enter marks for: ${question.questionText}`
-          );
-
-          return false;
-        }
-
-        const numericMarks =
-          Number(marks);
-
-        const maxPoints = Number(
-          question.maxPoints || 0
+  const saveCurrentStudentMarks =
+    async () => {
+      if (!selectedStudentId) {
+        setError(
+          "Please select a student"
         );
-
-        if (
-          Number.isNaN(numericMarks) ||
-          numericMarks < 0 ||
-          numericMarks > maxPoints
-        ) {
-          setError(
-            `Invalid marks for: ${question.questionText}. Maximum marks are ${maxPoints}.`
-          );
-
-          return false;
-        }
-
-        markPayload.push({
-          questionId: question._id,
-          awardedScore: numericMarks,
-        });
+        return false;
       }
-    }
 
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
+      if (!marksData) {
+        setError(
+          "Student marks data not loaded"
+        );
+        return false;
+      }
 
-      const response =
-        await api.saveStudentMarks(
-          assessmentId,
-          selectedStudentId,
-          markPayload
+      let markPayload = [];
+
+      try {
+        markPayload =
+          buildMarkPayload();
+      } catch (validationError) {
+        setError(
+          validationError.message
+        );
+        return false;
+      }
+
+      /*
+       * If no question has been entered,
+       * don't submit empty data.
+       */
+      if (
+        markPayload.length === 0
+      ) {
+        setError(
+          "Please enter at least one answer."
+        );
+        return false;
+      }
+
+      const selectionPayload =
+        buildPartSelectionPayload();
+
+      try {
+        setSaving(true);
+        setError("");
+        setSuccess("");
+
+        const response =
+          await api.saveStudentMarks(
+            assessmentId,
+            selectedStudentId,
+            markPayload,
+            selectionPayload
+          );
+
+        setSuccess(
+          response?.message ||
+            "Marks saved successfully"
         );
 
-      setSuccess(
-        response?.message ||
-          "Marks saved successfully"
-      );
+        /*
+         * Reload backend calculated
+         * values so frontend never becomes
+         * source of truth.
+         */
+        await loadStudentMarks(
+          selectedStudentId
+        );
 
-      return true;
-    } catch (err) {
-      console.error(
-        "SAVE MARKS ERROR:",
-        err
-      );
+        return true;
+      } catch (err) {
+        console.error(
+          "SAVE MARKS ERROR:",
+          err
+        );
 
-      setError(
-        err?.message ||
-          "Failed to save marks"
-      );
+        setError(
+          err?.message ||
+            "Failed to save marks"
+        );
 
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  };
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    };
 
   // ==========================================================
   // SAVE + NEXT
   // ==========================================================
 
-  const handleNextStudent = async () => {
-    if (!selectedStudentId) {
-      setError("Please select a student");
-      return;
-    }
+  const handleNextStudent =
+    async () => {
+      if (!selectedStudentId) {
+        setError(
+          "Please select a student"
+        );
+        return;
+      }
 
-    const saved =
-      await saveCurrentStudentMarks();
+      if (!allQuestionsAnswered) {
+        setError(
+          "Please complete all required questions and selected parts."
+        );
+        return;
+      }
 
-    if (!saved) {
-      return;
-    }
+      const saved =
+        await saveCurrentStudentMarks();
 
-    if (isLastStudent) {
-      setAssessmentSubmitted(true);
-      setSuccess("");
-      return;
-    }
+      if (!saved) return;
 
-    const nextStudent =
-      students[currentStudentIndex + 1];
+      if (isLastStudent) {
+        setAssessmentSubmitted(
+          true
+        );
+        setSuccess("");
+        return;
+      }
 
-    if (!nextStudent) {
-      return;
-    }
+      const nextStudent =
+        students[
+          currentStudentIndex + 1
+        ];
 
-    setSelectedStudentId(
-      nextStudent._id
-    );
+      if (!nextStudent) return;
 
-    await loadStudentMarks(
-      nextStudent._id
-    );
-  };
+      setSelectedStudentId(
+        nextStudent._id
+      );
+
+      await loadStudentMarks(
+        nextStudent._id
+      );
+    };
 
   // ==========================================================
-  // PREVIOUS STUDENT
+  // PREVIOUS
   // ==========================================================
 
-  const handlePreviousStudent = async () => {
-    if (currentStudentIndex <= 0) {
-      return;
-    }
+  const handlePreviousStudent =
+    async () => {
+      if (
+        currentStudentIndex <= 0
+      ) {
+        return;
+      }
 
-    const previousStudent =
-      students[
-        currentStudentIndex - 1
-      ];
+      const previousStudent =
+        students[
+          currentStudentIndex - 1
+        ];
 
-    setSelectedStudentId(
-      previousStudent._id
-    );
+      setSelectedStudentId(
+        previousStudent._id
+      );
 
-    await loadStudentMarks(
-      previousStudent._id
-    );
-  };
+      await loadStudentMarks(
+        previousStudent._id
+      );
+    };
 
   // ==========================================================
   // REFRESH
   // ==========================================================
 
-  const handleRefresh = async () => {
-    const currentStudent =
-      selectedStudentId;
+  const handleRefresh =
+    async () => {
+      const currentStudent =
+        selectedStudentId;
 
-    await loadStudents();
+      await loadStudents();
 
-    if (currentStudent) {
-      await loadStudentMarks(
-        currentStudent
-      );
+      if (currentStudent) {
+        await loadStudentMarks(
+          currentStudent
+        );
+      }
+    };
+
+  // ==========================================================
+  // PART TOTAL
+  // ==========================================================
+
+  const calculatePartTotals = (
+    part
+  ) => {
+    if (
+      part.isOptional &&
+      !isPartAttempted(part)
+    ) {
+      return {
+        obtained: 0,
+        max: 0,
+        percentage: 0,
+        skipped: true,
+      };
     }
+
+    let obtained = 0;
+    let max = 0;
+
+    (
+      part.sections || []
+    ).forEach((section) => {
+      (
+        section.questions || []
+      ).forEach((question) => {
+        max += getQuestionMax(
+          question
+        );
+
+        const marks =
+          calculateQuestionMark(
+            question
+          );
+
+        if (
+          marks !== "" &&
+          marks !== null &&
+          marks !== undefined
+        ) {
+          obtained += Number(
+            marks
+          );
+        }
+      });
+    });
+
+    return {
+      obtained,
+      max,
+      percentage:
+        max > 0
+          ? (obtained / max) * 100
+          : 0,
+      skipped: false,
+    };
   };
+
+  // ==========================================================
+  // SECTION TOTAL
+  // ==========================================================
+
+  const calculateSectionTotals =
+    (section) => {
+      let obtained = 0;
+      let max = 0;
+
+      (
+        section.questions || []
+      ).forEach((question) => {
+        max += getQuestionMax(
+          question
+        );
+
+        const marks =
+          calculateQuestionMark(
+            question
+          );
+
+        if (
+          marks !== "" &&
+          marks !== null &&
+          marks !== undefined
+        ) {
+          obtained += Number(
+            marks
+          );
+        }
+      });
+
+      return {
+        obtained,
+        max,
+        percentage:
+          max > 0
+            ? (obtained / max) * 100
+            : 0,
+      };
+    };
 
   // ==========================================================
   // LOADING
@@ -630,7 +1381,7 @@ export default function TeacherMarksPage() {
   }
 
   // ==========================================================
-  // COMPLETED SCREEN
+  // COMPLETED
   // ==========================================================
 
   if (assessmentSubmitted) {
@@ -684,7 +1435,8 @@ export default function TeacherMarksPage() {
               >
                 {assessment.name}
                 {" • "}
-                Week {assessment.weekNumber}
+                Week{" "}
+                {assessment.weekNumber}
                 {" • "}
                 {assessment.batch?.name}
               </Typography>
@@ -749,10 +1501,7 @@ export default function TeacherMarksPage() {
         },
       }}
     >
-
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
+      {/* HEADER */}
 
       <Stack
         direction={{
@@ -792,7 +1541,8 @@ export default function TeacherMarksPage() {
             >
               {assessment.name}
               {" • "}
-              Week {assessment.weekNumber}
+              Week{" "}
+              {assessment.weekNumber}
               {" • "}
               {assessment.batch?.name}
             </Typography>
@@ -809,9 +1559,7 @@ export default function TeacherMarksPage() {
         </Button>
       </Stack>
 
-      {/* ======================================================
-          ALERTS
-      ====================================================== */}
+      {/* ALERTS */}
 
       {error && (
         <Alert
@@ -837,9 +1585,7 @@ export default function TeacherMarksPage() {
         </Alert>
       )}
 
-      {/* ======================================================
-          STUDENT SELECTOR
-      ====================================================== */}
+      {/* STUDENT SELECTOR */}
 
       <Card
         sx={{
@@ -911,9 +1657,7 @@ export default function TeacherMarksPage() {
         </CardContent>
       </Card>
 
-      {/* ======================================================
-          NO STUDENT
-      ====================================================== */}
+      {/* NO STUDENT */}
 
       {!selectedStudentId && (
         <Card
@@ -933,22 +1677,19 @@ export default function TeacherMarksPage() {
             </Typography>
 
             <Typography color="text.secondary">
-              Select a student from the assessment
-              batch to enter question-wise marks.
+              Select a student from the
+              assessment batch to enter
+              question-wise marks.
             </Typography>
           </CardContent>
         </Card>
       )}
 
-      {/* ======================================================
-          MARKS FORM
-      ====================================================== */}
+      {/* MARKS */}
 
       {marksData && (
         <>
-          {/* ==================================================
-              STUDENT INFO
-          ================================================== */}
+          {/* STUDENT INFO */}
 
           <Card
             sx={{
@@ -1002,9 +1743,13 @@ export default function TeacherMarksPage() {
                   </Typography>
 
                   <Typography fontWeight={700}>
-                    {currentTotals.obtained}
+                    {
+                      currentTotals.obtained
+                    }
                     {" / "}
-                    {currentTotals.max}
+                    {
+                      currentTotals.max
+                    }
                   </Typography>
                 </Box>
 
@@ -1033,7 +1778,8 @@ export default function TeacherMarksPage() {
                   </Typography>
 
                   <Typography fontWeight={700}>
-                    {currentStudentIndex + 1}
+                    {currentStudentIndex +
+                      1}
                     {" / "}
                     {students.length}
                   </Typography>
@@ -1043,470 +1789,298 @@ export default function TeacherMarksPage() {
           </Card>
 
           {/* ==================================================
-              SECTIONS
+              PART MODE
           ================================================== */}
 
-          <Stack spacing={3}>
-            {marksData.sections?.map(
-              (section) => {
+          {hasParts && (
+            <Stack spacing={3}>
+              {getParts().map(
+                (part) => {
+                  const attempted =
+                    isPartAttempted(
+                      part
+                    );
 
-                const sectionObtained =
-                  section.questions.reduce(
-                    (
-                      total,
-                      question
-                    ) => {
-                      const marks =
-                        awardedMarks[
-                          question._id
-                        ];
+                  const totals =
+                    calculatePartTotals(
+                      part
+                    );
 
-                      if (
-                        marks !== undefined &&
-                        marks !== null &&
-                        marks !== ""
-                      ) {
-                        return (
-                          total +
-                          Number(marks)
-                        );
+                  return (
+                    <Card
+                      key={
+                        part._id ||
+                        part.partId
                       }
+                      sx={{
+                        borderRadius: 3,
+                        borderLeft: 5,
+                        borderColor:
+                          part.isOptional
+                            ? "warning.main"
+                            : "primary.main",
+                      }}
+                    >
+                      <CardContent>
+                        {/* PART HEADER */}
 
-                      return total;
-                    },
-                    0
-                  );
-
-                const sectionMax =
-                  section.questions.reduce(
-                    (
-                      total,
-                      question
-                    ) =>
-                      total +
-                      Number(
-                        question.maxPoints ||
-                          0
-                      ),
-                    0
-                  );
-
-                return (
-                  <Card
-                    key={
-                      section._id
-                    }
-                    sx={{
-                      borderRadius: 3,
-                    }}
-                  >
-                    <CardContent>
-
-                      {/* SECTION HEADER */}
-
-                      <Stack
-                        direction={{
-                          xs: "column",
-                          sm: "row",
-                        }}
-                        justifyContent="space-between"
-                        spacing={1}
-                        mb={2}
-                      >
-                        <Box>
-                          <Typography
-                            variant="h6"
-                            fontWeight={700}
-                          >
-                            {section.name}
-                          </Typography>
-
-                          {section.description && (
-                            <Typography
-                              color="text.secondary"
-                              variant="body2"
+                        <Stack
+                          direction={{
+                            xs: "column",
+                            md: "row",
+                          }}
+                          justifyContent="space-between"
+                          spacing={2}
+                          mb={2}
+                        >
+                          <Box>
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              alignItems="center"
+                              flexWrap="wrap"
                             >
-                              {
-                                section.description
-                              }
-                            </Typography>
-                          )}
-                        </Box>
+                              <Typography
+                                variant="h5"
+                                fontWeight={700}
+                              >
+                                {part.name}
+                              </Typography>
 
-                        <Chip
-                          label={`Section: ${sectionObtained} / ${sectionMax}`}
-                          color="primary"
-                          variant="outlined"
-                        />
-                      </Stack>
+                              {part.code && (
+                                <Chip
+                                  size="small"
+                                  label={
+                                    part.code
+                                  }
+                                  variant="outlined"
+                                />
+                              )}
 
-                      <Divider
-                        sx={{ mb: 2 }}
-                      />
-
-                      {/* QUESTIONS */}
-
-                      <Stack spacing={2}>
-                        {section.questions.map(
-                          (
-                            question,
-                            index
-                          ) => {
-
-                            const selectedAnswer =
-                              answers[
-                                question._id
-                              ];
-
-                            const marks =
-                              awardedMarks[
-                                question._id
-                              ];
-
-                            const maxPoints =
-                              Number(
-                                question.maxPoints ||
-                                  0
-                              );
-
-                            return (
-                              <Card
-                                key={
-                                  question._id
+                              <Chip
+                                size="small"
+                                label={
+                                  part.isOptional
+                                    ? "Optional"
+                                    : "Required"
                                 }
-                                variant="outlined"
+                                color={
+                                  part.isOptional
+                                    ? "warning"
+                                    : "primary"
+                                }
+                              />
+                            </Stack>
+
+                            {part.description && (
+                              <Typography
+                                color="text.secondary"
+                                variant="body2"
                                 sx={{
-                                  borderRadius: 2,
+                                  mt: 0.5,
                                 }}
                               >
-                                <CardContent>
+                                {
+                                  part.description
+                                }
+                              </Typography>
+                            )}
+                          </Box>
 
-                                  {/* QUESTION HEADER */}
+                          <Box>
+                            {part.isOptional ? (
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={
+                                      attempted
+                                    }
+                                    onChange={(
+                                      e
+                                    ) =>
+                                      handlePartSelectionChange(
+                                        part._id ||
+                                          part.partId,
+                                        e.target
+                                          .checked
+                                      )
+                                    }
+                                    disabled={
+                                      saving
+                                    }
+                                  />
+                                }
+                                label={
+                                  attempted
+                                    ? "Attempt Part"
+                                    : "Skip Part"
+                                }
+                              />
+                            ) : (
+                              <Chip
+                                label="Required Part"
+                                color="primary"
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        </Stack>
 
-                                  <Stack
-                                    direction={{
-                                      xs: "column",
-                                      sm: "row",
-                                    }}
-                                    justifyContent="space-between"
-                                    spacing={1}
-                                    mb={2}
-                                  >
-                                    <Box
-                                      sx={{
-                                        flex: 1,
-                                      }}
-                                    >
-                                      <Typography
-                                        fontWeight={600}
-                                      >
-                                        Q
-                                        {index +
-                                          1}
-                                        .{" "}
-                                        {
-                                          question.questionText
-                                        }
-                                      </Typography>
+                        <Divider
+                          sx={{
+                            mb: 2,
+                          }}
+                        />
 
-                                      <Stack
-                                        direction="row"
-                                        spacing={1}
-                                        mt={1}
-                                        flexWrap="wrap"
-                                      >
-                                        <Chip
-                                          size="small"
-                                          label={getQuestionTypeLabel(
-                                            question.questionType
-                                          )}
-                                          color="primary"
-                                          variant="outlined"
-                                        />
+                        {/* SKIPPED */}
 
-                                        <Chip
-                                          size="small"
-                                          label={`Max ${maxPoints}`}
-                                          color="success"
-                                          variant="outlined"
-                                        />
+                        {!attempted &&
+                        part.isOptional ? (
+                          <Alert severity="info">
+                            This optional
+                            part is skipped.
+                            Its marks are
+                            completely
+                            excluded from
+                            the final
+                            numerator and
+                            denominator.
+                          </Alert>
+                        ) : (
+                          <Stack spacing={3}>
+                            {(
+                              part.sections ||
+                              []
+                            ).map(
+                              (section) => {
+                                const totals =
+                                  calculateSectionTotals(
+                                    section
+                                  );
 
-                                        {question.isRequired && (
-                                          <Chip
-                                            size="small"
-                                            label="Required"
-                                            color="error"
-                                            variant="outlined"
-                                          />
-                                        )}
-                                      </Stack>
-                                    </Box>
-                                  </Stack>
-
-                                  {/* =================================
-                                      ANSWER INPUT
-                                  ================================= */}
-
-                                  <Box
-                                    sx={{
-                                      mb: 2,
-                                    }}
-                                  >
-
-                                    {/* YES / NO */}
-
-                                    {question.questionType ===
-                                      "YES_NO" && (
-                                      <FormControl>
-                                       {/*  <Typography
-                                          variant="body2"
-                                          fontWeight={600}
-                                          sx={{
-                                            mb: 1,
-                                          }}
-                                        >
-                                          Student Answer
-                                        </Typography> */}
-
-                                        <RadioGroup
-                                          row
-                                          value={
-                                            selectedAnswer ||
-                                            ""
-                                          }
-                                          onChange={(
-                                            event
-                                          ) =>
-                                            handleAnswerChange(
-                                              question._id,
-                                              event.target.value,
-                                              maxPoints
-                                            )
-                                          }
-                                        >
-                                          <FormControlLabel
-                                            value="YES"
-                                            control={
-                                              <Radio />
-                                            }
-                                            label="YES"
-                                          />
-
-                                          <FormControlLabel
-                                            value="NO"
-                                            control={
-                                              <Radio />
-                                            }
-                                            label="NO"
-                                          />
-                                        </RadioGroup>
-                                      </FormControl>
-                                    )}
-
-                                    {/* TEXT */}
-
-                                    {question.questionType ===
-                                      "TEXT" && (
-                                      <TextField
-                                        fullWidth
-                                        multiline
-                                        minRows={3}
-                                        label="Student Answer"
-                                        value={
-                                          selectedAnswer ||
-                                          ""
-                                        }
-                                        onChange={(
-                                          event
-                                        ) =>
-                                          handleAnswerChange(
-                                            question._id,
-                                            event.target
-                                              .value
-                                          )
-                                        }
-                                      />
-                                    )}
-
-                                    {/* NUMBER */}
-
-                                    {question.questionType ===
-                                      "NUMBER" && (
-                                      <TextField
-                                        fullWidth
-                                        type="number"
-                                        label="Student Answer"
-                                        value={
-                                          selectedAnswer ??
-                                          ""
-                                        }
-                                        onChange={(
-                                          event
-                                        ) =>
-                                          handleAnswerChange(
-                                            question._id,
-                                            event.target
-                                              .value
-                                          )
-                                        }
-                                      />
-                                    )}
-
-                                    {/* SINGLE CHOICE */}
-
-                                    {question.questionType ===
-                                      "SINGLE_CHOICE" && (
-                                      <FormControl fullWidth>
-                                        <InputLabel>
-                                          Student Answer
-                                        </InputLabel>
-
-                                        <Select
-                                          value={
-                                            selectedAnswer ||
-                                            ""
-                                          }
-                                          label="Student Answer"
-                                          onChange={(
-                                            event
-                                          ) =>
-                                            handleAnswerChange(
-                                              question._id,
-                                              event.target
-                                                .value
-                                            )
-                                          }
-                                        >
-                                          <MenuItem value="">
-                                            Select Answer
-                                          </MenuItem>
-
-                                          {(
-                                            question.options ||
-                                            []
-                                          ).map(
-                                            (
-                                              option,
-                                              optionIndex
-                                            ) => (
-                                              <MenuItem
-                                                key={
-                                                  optionIndex
-                                                }
-                                                value={
-                                                  option
-                                                }
-                                              >
-                                                {option}
-                                              </MenuItem>
-                                            )
-                                          )}
-                                        </Select>
-                                      </FormControl>
-                                    )}
-
-                                    {/* MULTIPLE CHOICE */}
-
-                                    {question.questionType ===
-                                      "MULTIPLE_CHOICE" && (
-                                      <FormControl fullWidth>
-                                        <Typography
-                                          variant="body2"
-                                          fontWeight={600}
-                                          sx={{
-                                            mb: 1,
-                                          }}
-                                        >
-                                          Student Answer
-                                        </Typography>
-
-                                        <Stack>
-                                          {(
-                                            question.options ||
-                                            []
-                                          ).map(
-                                            (
-                                              option,
-                                              optionIndex
-                                            ) => {
-                                              const current =
-                                                Array.isArray(
-                                                  selectedAnswer
-                                                )
-                                                  ? selectedAnswer
-                                                  : [];
-
-                                              const checked =
-                                                current.includes(
-                                                  option
-                                                );
-
-                                              return (
-                                                <FormControlLabel
-                                                  key={
-                                                    optionIndex
-                                                  }
-                                                  control={
-                                                    <Checkbox
-                                                      checked={
-                                                        checked
-                                                      }
-                                                      onChange={(
-                                                        event
-                                                      ) => {
-                                                        const updated =
-                                                          event
-                                                            .target
-                                                            .checked
-                                                            ? [
-                                                                ...current,
-                                                                option,
-                                                              ]
-                                                            : current.filter(
-                                                                (
-                                                                  item
-                                                                ) =>
-                                                                  item !==
-                                                                  option
-                                                              );
-
-                                                        handleAnswerChange(
-                                                          question._id,
-                                                          updated
-                                                        );
-                                                      }}
-                                                    />
-                                                  }
-                                                  label={
-                                                    option
-                                                  }
-                                                />
-                                              );
-                                            }
-                                          )}
-                                        </Stack>
-                                      </FormControl>
-                                    )}
-
-                                  </Box>
-
-                                </CardContent>
-                              </Card>
-                            );
-                          }
+                                return (
+                                  <SectionMarks
+                                    key={
+                                      section._id
+                                    }
+                                    section={
+                                      section
+                                    }
+                                    totals={
+                                      totals
+                                    }
+                                    answers={
+                                      answers
+                                    }
+                                    awardedMarks={
+                                      awardedMarks
+                                    }
+                                    handleAnswerChange={
+                                      handleAnswerChange
+                                    }
+                                    getQuestionTypeLabel={
+                                      getQuestionTypeLabel
+                                    }
+                                    calculateQuestionMark={
+                                      calculateQuestionMark
+                                    }
+                                  />
+                                );
+                              }
+                            )}
+                          </Stack>
                         )}
-                      </Stack>
 
-                    </CardContent>
-                  </Card>
-                );
-              }
-            )}
-          </Stack>
+                        {/* PART TOTAL */}
+
+                        <Box
+                          sx={{
+                            mt: 2,
+                            p: 2,
+                            borderRadius: 2,
+                            bgcolor:
+                              "grey.50",
+                          }}
+                        >
+                          <Stack
+                            direction={{
+                              xs: "column",
+                              sm: "row",
+                            }}
+                            spacing={2}
+                            justifyContent="space-between"
+                          >
+                            <Typography fontWeight={700}>
+                              Part Total
+                            </Typography>
+
+                            <Typography fontWeight={700}>
+                              {totals.obtained}
+                              {" / "}
+                              {totals.max}
+                              {" • "}
+                              {totals.percentage.toFixed(
+                                2
+                              )}
+                              %
+                            </Typography>
+                          </Stack>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+              )}
+            </Stack>
+          )}
 
           {/* ==================================================
-              FOOTER
+              DIRECT SECTION MODE
           ================================================== */}
+
+          {!hasParts && (
+            <Stack spacing={3}>
+              {getSections().map(
+                (section) => {
+                  const totals =
+                    calculateSectionTotals(
+                      section
+                    );
+
+                  return (
+                    <SectionMarks
+                      key={
+                        section._id
+                      }
+                      section={
+                        section
+                      }
+                      totals={
+                        totals
+                      }
+                      answers={
+                        answers
+                      }
+                      awardedMarks={
+                        awardedMarks
+                      }
+                      handleAnswerChange={
+                        handleAnswerChange
+                      }
+                      getQuestionTypeLabel={
+                        getQuestionTypeLabel
+                      }
+                      calculateQuestionMark={
+                        calculateQuestionMark
+                      }
+                    />
+                  );
+                }
+              )}
+            </Stack>
+          )}
+
+          {/* FOOTER */}
 
           <Card
             sx={{
@@ -1518,7 +2092,6 @@ export default function TeacherMarksPage() {
             }}
           >
             <CardContent>
-
               <Stack
                 direction={{
                   xs: "column",
@@ -1531,9 +2104,6 @@ export default function TeacherMarksPage() {
                 }}
                 justifyContent="space-between"
               >
-
-                {/* TOTAL */}
-
                 <Box>
                   <Typography
                     variant="h6"
@@ -1571,8 +2141,6 @@ export default function TeacherMarksPage() {
                   </Typography>
                 </Box>
 
-                {/* ACTIONS */}
-
                 <Stack
                   direction={{
                     xs: "column",
@@ -1580,9 +2148,6 @@ export default function TeacherMarksPage() {
                   }}
                   spacing={1}
                 >
-
-                  {/* PREVIOUS */}
-
                   <Button
                     variant="outlined"
                     disabled={
@@ -1595,8 +2160,6 @@ export default function TeacherMarksPage() {
                   >
                     Previous
                   </Button>
-
-                  {/* SAVE & NEXT */}
 
                   {!isLastStudent && (
                     <Button
@@ -1625,8 +2188,6 @@ export default function TeacherMarksPage() {
                     </Button>
                   )}
 
-                  {/* LAST */}
-
                   {isLastStudent && (
                     <Button
                       variant="contained"
@@ -1654,17 +2215,381 @@ export default function TeacherMarksPage() {
                         : "Save & Submit"}
                     </Button>
                   )}
-
                 </Stack>
-
               </Stack>
-
             </CardContent>
           </Card>
-
         </>
       )}
     </Box>
   );
 }
 
+// ============================================================
+// SECTION MARKS COMPONENT
+// ============================================================
+
+function SectionMarks({
+  section,
+  totals,
+  answers,
+  awardedMarks,
+  handleAnswerChange,
+  getQuestionTypeLabel,
+  calculateQuestionMark,
+}) {
+  return (
+    <Card
+      sx={{
+        borderRadius: 3,
+      }}
+    >
+      <CardContent>
+        <Stack
+          direction={{
+            xs: "column",
+            sm: "row",
+          }}
+          justifyContent="space-between"
+          spacing={1}
+          mb={2}
+        >
+          <Box>
+            <Typography
+              variant="h6"
+              fontWeight={700}
+            >
+              {section.name}
+            </Typography>
+
+            {section.description && (
+              <Typography
+                color="text.secondary"
+                variant="body2"
+              >
+                {section.description}
+              </Typography>
+            )}
+          </Box>
+
+          <Chip
+            label={`Section: ${totals.obtained} / ${totals.max}`}
+            color="primary"
+            variant="outlined"
+          />
+        </Stack>
+
+        <Divider sx={{ mb: 2 }} />
+
+        <Stack spacing={2}>
+          {(section.questions || []).map(
+            (question, index) => {
+              const selectedAnswer =
+                answers[
+                  question._id
+                ];
+
+              const maxPoints =
+                Number(
+                  question.maxPoints ||
+                    0
+                );
+
+              const marks =
+                calculateQuestionMark(
+                  question
+                );
+
+              return (
+                <Card
+                  key={
+                    question._id
+                  }
+                  variant="outlined"
+                  sx={{
+                    borderRadius: 2,
+                  }}
+                >
+                  <CardContent>
+                    <Stack
+                      direction={{
+                        xs: "column",
+                        sm: "row",
+                      }}
+                      justifyContent="space-between"
+                      spacing={1}
+                      mb={2}
+                    >
+                      <Box sx={{ flex: 1 }}>
+                        <Typography fontWeight={600}>
+                          Q{index + 1}.{" "}
+                          {
+                            question.questionText
+                          }
+                        </Typography>
+
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          mt={1}
+                          flexWrap="wrap"
+                        >
+                          <Chip
+                            size="small"
+                            label={getQuestionTypeLabel(
+                              question.questionType
+                            )}
+                            color="primary"
+                            variant="outlined"
+                          />
+
+                          <Chip
+                            size="small"
+                            label={`Max ${maxPoints}`}
+                            color="success"
+                            variant="outlined"
+                          />
+
+                          {question.isRequired && (
+                            <Chip
+                              size="small"
+                              label="Required"
+                              color="error"
+                              variant="outlined"
+                            />
+                          )}
+                        </Stack>
+                      </Box>
+
+                      {marks !== "" && (
+                        <Chip
+                          size="small"
+                          label={`Marks: ${marks}/${maxPoints}`}
+                          color="success"
+                        />
+                      )}
+                    </Stack>
+
+                    {/* YES / NO */}
+
+                    {question.questionType ===
+                      "YES_NO" && (
+                      <FormControl>
+                        <RadioGroup
+                          row
+                          value={
+                            selectedAnswer ||
+                            ""
+                          }
+                          onChange={(event) =>
+                            handleAnswerChange(
+                              question._id,
+                              event.target
+                                .value,
+                              maxPoints
+                            )
+                          }
+                        >
+                          <FormControlLabel
+                            value="YES"
+                            control={<Radio />}
+                            label={`YES (${maxPoints} pts)`}
+                          />
+
+                          <FormControlLabel
+                            value="NO"
+                            control={<Radio />}
+                            label="NO (0 pts)"
+                          />
+                        </RadioGroup>
+                      </FormControl>
+                    )}
+
+                    {/* TEXT */}
+
+                    {question.questionType ===
+                      "TEXT" && (
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        label="Student Answer"
+                        value={
+                          selectedAnswer ||
+                          ""
+                        }
+                        onChange={(event) =>
+                          handleAnswerChange(
+                            question._id,
+                            event.target
+                              .value
+                          )
+                        }
+                      />
+                    )}
+
+                    {/* NUMBER */}
+
+                    {question.questionType ===
+                      "NUMBER" && (
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="Student Answer"
+                        value={
+                          selectedAnswer ??
+                          ""
+                        }
+                        onChange={(event) =>
+                          handleAnswerChange(
+                            question._id,
+                            event.target
+                              .value
+                          )
+                        }
+                      />
+                    )}
+
+                    {/* SINGLE CHOICE */}
+
+                    {question.questionType ===
+                      "SINGLE_CHOICE" && (
+                      <FormControl fullWidth>
+                        <InputLabel>
+                          Student Answer
+                        </InputLabel>
+
+                        <Select
+                          value={
+                            selectedAnswer ||
+                            ""
+                          }
+                          label="Student Answer"
+                          onChange={(event) =>
+                            handleAnswerChange(
+                              question._id,
+                              event.target
+                                .value
+                            )
+                          }
+                        >
+                          <MenuItem value="">
+                            Select Answer
+                          </MenuItem>
+
+                          {(
+                            question.options ||
+                            []
+                          ).map(
+                            (
+                              option,
+                              optionIndex
+                            ) => (
+                              <MenuItem
+                                key={
+                                  optionIndex
+                                }
+                                value={
+                                  option
+                                }
+                              >
+                                {option}
+                              </MenuItem>
+                            )
+                          )}
+                        </Select>
+                      </FormControl>
+                    )}
+
+                    {/* MULTIPLE CHOICE */}
+
+                    {question.questionType ===
+                      "MULTIPLE_CHOICE" && (
+                      <FormControl fullWidth>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          sx={{
+                            mb: 1,
+                          }}
+                        >
+                          Student Answer
+                        </Typography>
+
+                        <Stack>
+                          {(
+                            question.options ||
+                            []
+                          ).map(
+                            (
+                              option,
+                              optionIndex
+                            ) => {
+                              const current =
+                                Array.isArray(
+                                  selectedAnswer
+                                )
+                                  ? selectedAnswer
+                                  : [];
+
+                              const checked =
+                                current.includes(
+                                  option
+                                );
+
+                              return (
+                                <FormControlLabel
+                                  key={
+                                    optionIndex
+                                  }
+                                  control={
+                                    <Checkbox
+                                      checked={
+                                        checked
+                                      }
+                                      onChange={(
+                                        event
+                                      ) => {
+                                        const updated =
+                                          event
+                                            .target
+                                            .checked
+                                            ? [
+                                                ...current,
+                                                option,
+                                              ]
+                                            : current.filter(
+                                                (
+                                                  item
+                                                ) =>
+                                                  item !==
+                                                  option
+                                              );
+
+                                        handleAnswerChange(
+                                          question._id,
+                                          updated
+                                        );
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    option
+                                  }
+                                />
+                              );
+                            }
+                          )}
+                        </Stack>
+                      </FormControl>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            }
+          )}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}

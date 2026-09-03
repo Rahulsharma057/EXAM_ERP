@@ -1,32 +1,208 @@
-const mongoose = require('mongoose');
 
-const answerSchema = new mongoose.Schema({
-  submission: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentSubmission', required: true },
-  assessment: { type: mongoose.Schema.Types.ObjectId, ref: 'Assessment', required: true },
-  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+const mongoose = require("mongoose");
 
-  question: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentQuestion', required: true },
-  section: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentSection', required: true },
+const answerSchema = new mongoose.Schema(
+  {
+    // ======================================================
+    // SUBMISSION
+    // ======================================================
 
-  // Snapshot of question at submission time
-  questionSnapshot: {
-    questionText: String,
-    questionType: String,
-    maxPoints: Number,
-    sectionName: String,
-    displayOrder: Number
+    submission: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssessmentSubmission",
+      required: true,
+      index: true,
+    },
+
+    // ======================================================
+    // ASSESSMENT
+    // ======================================================
+
+    assessment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Assessment",
+      required: true,
+      index: true,
+    },
+
+    // ======================================================
+    // STUDENT
+    // ======================================================
+
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Student",
+      required: true,
+      index: true,
+    },
+
+    // ======================================================
+    // PART
+    // ======================================================
+
+    part: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssessmentPart",
+      default: null,
+      index: true,
+    },
+
+    // ======================================================
+    // SECTION
+    // ======================================================
+
+    section: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssessmentSection",
+      required: true,
+      index: true,
+    },
+
+    // ======================================================
+    // QUESTION
+    // ======================================================
+
+    question: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssessmentQuestion",
+      required: true,
+      index: true,
+    },
+
+    // ======================================================
+    // PART SNAPSHOT
+    //
+    // Keeps historical information safe.
+    // ======================================================
+
+    partSnapshot: {
+      partId: {
+        type: mongoose.Schema.Types.ObjectId,
+      },
+
+      name: {
+        type: String,
+      },
+
+      code: {
+        type: String,
+      },
+
+      isOptional: {
+        type: Boolean,
+        default: false,
+      },
+
+      displayOrder: {
+        type: Number,
+      },
+    },
+
+    // ======================================================
+    // QUESTION SNAPSHOT
+    // ======================================================
+
+    questionSnapshot: {
+      questionText: String,
+
+      questionType: String,
+
+      maxPoints: Number,
+
+      sectionName: String,
+
+      sectionDisplayOrder: Number,
+
+      partName: String,
+
+      partDisplayOrder: Number,
+
+      displayOrder: Number,
+    },
+
+    // ======================================================
+    // STUDENT ANSWER
+    // ======================================================
+
+    answerValue: {
+      type: mongoose.Schema.Types.Mixed,
+      required: true,
+    },
+
+    // ======================================================
+    // AWARDED SCORE
+    // ======================================================
+
+    awardedScore: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // ======================================================
+    // GRADING
+    // ======================================================
+
+    gradedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    gradedAt: {
+      type: Date,
+    },
+
+    remarks: {
+      type: String,
+      trim: true,
+    },
   },
+  {
+    timestamps: true,
+  }
+);
 
-  answerValue: { type: mongoose.Schema.Types.Mixed, required: true },
-  awardedScore: { type: Number, default: 0 },
+// ==========================================================
+// INDEXES
+// ==========================================================
 
-  gradedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  gradedAt: { type: Date },
+// One answer per question in a submission
+answerSchema.index(
+  {
+    submission: 1,
+    question: 1,
+  },
+  {
+    unique: true,
+  }
+);
 
-  remarks: { type: String }
-}, { timestamps: true });
+// Assessment/student result lookup
+answerSchema.index({
+  assessment: 1,
+  student: 1,
+});
 
-answerSchema.index({ submission: 1, question: 1 }, { unique: true });
-answerSchema.index({ assessment: 1, student: 1 });
+// Part-wise result
+answerSchema.index({
+  assessment: 1,
+  student: 1,
+  part: 1,
+});
 
-module.exports = mongoose.model('AssessmentAnswer', answerSchema);
+// Section-wise result
+answerSchema.index({
+  assessment: 1,
+  student: 1,
+  section: 1,
+});
+
+// ==========================================================
+// EXPORT
+// ==========================================================
+
+module.exports = mongoose.model(
+  "AssessmentAnswer",
+  answerSchema
+);
+
