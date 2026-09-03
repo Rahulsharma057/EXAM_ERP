@@ -37,10 +37,34 @@ const app = express();
 // ======================================================
 // CORS
 // ======================================================
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+];
 
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Production frontend
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Vercel preview deployments
+      if (
+        origin.endsWith(".vercel.app") &&
+        origin.includes("exam-")
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error(`CORS blocked: ${origin}`)
+      );
+    },
     credentials: true,
   })
 );
