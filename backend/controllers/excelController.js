@@ -31,11 +31,51 @@ const safeFileName = (value) =>
 // ID HELPERS
 // ============================================================
 
+/*
+ * FIX: previously this only handled two shapes —
+ * a populated document (`value._id`) and a plain
+ * `{ id }`-shaped object. It did NOT handle a raw
+ * (unpopulated) Mongoose/BSON ObjectId — which is
+ * exactly what you get back from `.lean()` queries
+ * for ref fields that were never `.populate()`d, e.g.
+ * `submission.student`, `score.partId`, `score.sectionId`
+ * in this controller's exportResults.
+ *
+ * A raw ObjectId IS an object (typeof === "object"), so
+ * the old code fell into the `typeof value === "object"`
+ * branch and looked for `value._id` / `value.id` — neither
+ * of which is the hex id (`.id` on an ObjectId is the raw
+ * 12-byte binary, not a string). That made getId() return
+ * garbage/undefined for every raw ObjectId, so sameId()
+ * always returned false, so findPartScore()/findSectionScore()
+ * and the submission->student map never matched anything —
+ * every row in the exported Excel showed 0/0/"NO" regardless
+ * of what was actually saved or which fields were selected.
+ *
+ * Fix: explicitly recognize ObjectId instances via
+ * toHexString() (present on every Mongo/Mongoose ObjectId)
+ * before falling back to the populated-document shape.
+ */
 const getId = (value) => {
   if (!value) return null;
 
   if (typeof value === "object") {
-    return value._id || value.id || null;
+    // Raw ObjectId (lean/unpopulated ref field)
+    if (typeof value.toHexString === "function") {
+      return value.toHexString();
+    }
+
+    // Populated document
+    if (value._id) {
+      return getId(value._id);
+    }
+
+    // Plain { id } shaped object
+    if (value.id) {
+      return value.id;
+    }
+
+    return null;
   }
 
   return value;
@@ -594,9 +634,6 @@ exports.exportTemplate = async (req, res) => {
   }
 };
 
-// ============================================================
-// EXPORT RESULTS
-// ============================================================
 // ============================================================
 // EXPORT RESULTS
 // ============================================================

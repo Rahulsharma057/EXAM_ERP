@@ -10,17 +10,33 @@ export default function HierarchyFilter({ onChange, values = {} }) {
   const [batches, setBatches] = useState([]);
   const [selected, setSelected] = useState(values);
 
+  // Keep internal state in sync when the PARENT updates `values` after
+  // this component has already mounted — e.g. the Edit dialog fetches
+  // the student asynchronously and only then knows the org/centre/
+  // course/batch IDs. Without this, that later update never reaches us.
+  useEffect(() => {
+    setSelected({
+      organisation: values?.organisation || '',
+      centre: values?.centre || '',
+      course: values?.course || '',
+      batch: values?.batch || '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values?.organisation, values?.centre, values?.course, values?.batch]);
+
   useEffect(() => {
     api.getOrganisations().then(res => setOrganisations(res.data));
   }, []);
 
+  // These effects ONLY fetch the option lists for whatever is
+  // currently selected — they no longer clear the levels below,
+  // so a pre-filled centre/course/batch (edit mode) survives.
   useEffect(() => {
     if (selected.organisation) {
       api.getCentres(selected.organisation).then(res => setCentres(res.data));
     } else {
       setCentres([]);
     }
-    setSelected(s => ({ ...s, centre: '', course: '', batch: '' }));
   }, [selected.organisation]);
 
   useEffect(() => {
@@ -29,7 +45,6 @@ export default function HierarchyFilter({ onChange, values = {} }) {
     } else {
       setCourses([]);
     }
-    setSelected(s => ({ ...s, course: '', batch: '' }));
   }, [selected.centre]);
 
   useEffect(() => {
@@ -38,11 +53,22 @@ export default function HierarchyFilter({ onChange, values = {} }) {
     } else {
       setBatches([]);
     }
-    setSelected(s => ({ ...s, batch: '' }));
   }, [selected.course]);
 
+  // Resetting lower levels now happens ONLY when the user explicitly
+  // picks a new value from a dropdown — not as a side effect of
+  // programmatic/prefill updates.
   const handleChange = (field, value) => {
-    const updated = { ...selected, [field]: value };
+    let updated = { ...selected, [field]: value };
+
+    if (field === 'organisation') {
+      updated = { ...updated, centre: '', course: '', batch: '' };
+    } else if (field === 'centre') {
+      updated = { ...updated, course: '', batch: '' };
+    } else if (field === 'course') {
+      updated = { ...updated, batch: '' };
+    }
+
     setSelected(updated);
     onChange(updated);
   };

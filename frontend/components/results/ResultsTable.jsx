@@ -706,6 +706,18 @@ const partsMode =
   // PART MASTER TOGGLE
   // ==========================================================
 
+  /*
+   * FIX: this previously contained a no-op block — it looped
+   * over the part's sections and reassigned
+   * `nextParts[key] = { ...nextParts[key] }` (a spread of
+   * itself), which does nothing. It read as if it were meant
+   * to update something per-section on the *parts* map, but
+   * that's not a thing — section state lives in
+   * `exportOptions.sections`, which is already correctly
+   * cascaded a few lines below. Removed the dead block; the
+   * actual cascade (uncheck/check all of this part's sections)
+   * is unchanged.
+   */
   const togglePartSelection = (
     partId,
     checked
@@ -731,88 +743,36 @@ const partsMode =
           },
         };
 
-        // ----------------------------------------------------
-        // If Part is unchecked, uncheck all its sections
-        // ----------------------------------------------------
-
-        if (!checked) {
-          partGroups
-            .find(
-              (part) =>
-                sameId(
-                  part.id,
-                  partId
-                )
-            )
-            ?.sections?.forEach(
-              (section) => {
-                const sectionKey =
-                  String(
-                    section.id
-                  );
-
-                nextParts[
-                  key
-                ] = {
-                  ...nextParts[key],
-                };
-              }
-            );
-        }
-
         const nextSections = {
           ...(prev.sections || {}),
         };
 
-        if (!checked) {
-          const part =
-            partGroups.find(
-              (item) =>
-                sameId(
-                  item.id,
-                  partId
-                )
-            );
-
-          part?.sections?.forEach(
-            (section) => {
-              nextSections[
-                String(section.id)
-              ] = {
-                obtained: false,
-                max: false,
-                percentage: false,
-              };
-            }
+        const part =
+          partGroups.find(
+            (item) =>
+              sameId(
+                item.id,
+                partId
+              )
           );
-        }
 
         // ----------------------------------------------------
-        // If Part selected, select all sections too
+        // Cascade this Part's checked state to all of its
+        // sections (uncheck-all when unchecked, check-all
+        // when checked).
         // ----------------------------------------------------
 
-        if (checked) {
-          const part =
-            partGroups.find(
-              (item) =>
-                sameId(
-                  item.id,
-                  partId
-                )
-            );
-
-          part?.sections?.forEach(
-            (section) => {
-              nextSections[
-                String(section.id)
-              ] = {
-                obtained: true,
-                max: true,
-                percentage: true,
-              };
-            }
-          );
-        }
+        part?.sections?.forEach(
+          (section) => {
+            nextSections[
+              String(section.id)
+            ] = {
+              obtained: checked,
+              max: checked,
+              percentage: checked,
+            };
+          }
+        );
 
         return {
           ...prev,

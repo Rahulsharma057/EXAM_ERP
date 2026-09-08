@@ -88,7 +88,14 @@ export default function TeacherMarksPage() {
    * }
    *
    * true  = attempt
-   * false = skip optional part
+   * false = not attempted
+   *
+   * IMPORTANT: this now applies to BOTH optional and
+   * required Parts. The scoring difference (backend) is:
+   *   - Optional Part, false -> fully EXCLUDED from total
+   *   - Required Part, false -> COUNTED AS ZERO in total
+   *     (still included in the denominator, so it drags
+   *     the percentage down)
    */
   const [partSelections, setPartSelections] =
     useState({});
@@ -166,6 +173,18 @@ export default function TeacherMarksPage() {
     return result;
   };
 
+  /*
+   * IMPORTANT:
+   * This now works for BOTH optional and required Parts.
+   * Any Part (required or optional) can be explicitly
+   * marked "not attempted" via partSelections. Only the
+   * scoring consequence differs (handled on the backend):
+   *   - Optional: fully excluded
+   *   - Required: counted as zero
+   *
+   * A Part with no explicit selection defaults to
+   * "attempted" whether it's required or optional.
+   */
   const isPartAttempted = (part) => {
     const partId =
       part?._id ||
@@ -173,8 +192,14 @@ export default function TeacherMarksPage() {
 
     if (!partId) return true;
 
-    if (!part.isOptional) {
-      return true;
+    /*
+     * Explicit teacher selection always wins,
+     * for required AND optional parts.
+     */
+    if (
+      partSelections[partId] !== undefined
+    ) {
+      return Boolean(partSelections[partId]);
     }
 
     /*
@@ -185,12 +210,6 @@ export default function TeacherMarksPage() {
      *
      * Support all.
      */
-    if (
-      partSelections[partId] !== undefined
-    ) {
-      return Boolean(partSelections[partId]);
-    }
-
     if (
       part.attempted !== undefined
     ) {
@@ -210,8 +229,9 @@ export default function TeacherMarksPage() {
     }
 
     /*
-     * Default optional part = attempted.
-     * Teacher can explicitly skip it.
+     * Default = attempted.
+     * Teacher can explicitly mark not-attempted,
+     * whether the part is required or optional.
      */
     return true;
   };
@@ -330,7 +350,8 @@ export default function TeacherMarksPage() {
       const initialPartSelections = {};
 
       /*
-       * Load optional part selections.
+       * Load Part attempt selections.
+       * Applies to required AND optional parts.
        */
       (
         data.parts || []
@@ -365,9 +386,11 @@ export default function TeacherMarksPage() {
           ] = Boolean(
             part.isAttempted
           );
-        } else if (
-          part.isOptional
-        ) {
+        } else {
+          /*
+           * Default = attempted, for both
+           * required and optional parts.
+           */
           initialPartSelections[
             partId
           ] = true;
@@ -531,7 +554,8 @@ export default function TeacherMarksPage() {
 
       /*
        * If backend returns partScores,
-       * use them for optional-part state.
+       * use them for Part attempt state
+       * (required or optional).
        */
       (
         data.partScores || []
@@ -604,6 +628,8 @@ export default function TeacherMarksPage() {
 
   // ==========================================================
   // PART CHANGE
+  //
+  // Works for BOTH optional and required parts now.
   // ==========================================================
 
   const handlePartSelectionChange = (
@@ -685,6 +711,12 @@ export default function TeacherMarksPage() {
 
   // ==========================================================
   // CURRENT TOTALS
+  //
+  // - Optional Part not attempted -> fully excluded from
+  //   both obtained and max.
+  // - Required Part not attempted -> obtained contributes 0,
+  //   but max still counts (so percentage drops), mirroring
+  //   the backend scoring logic.
   // ==========================================================
 
   const currentTotals = useMemo(() => {
@@ -704,10 +736,11 @@ export default function TeacherMarksPage() {
      */
     if (hasParts) {
       getParts().forEach((part) => {
-        if (
-          part.isOptional &&
-          !isPartAttempted(part)
-        ) {
+        const attempted =
+          isPartAttempted(part);
+
+        if (!attempted && part.isOptional) {
+          // Optional & skipped -> fully excluded
           return;
         }
 
@@ -723,6 +756,12 @@ export default function TeacherMarksPage() {
               );
 
             max += maxPoints;
+
+            if (!attempted) {
+              // Required & not attempted ->
+              // 0 obtained, max already counted
+              return;
+            }
 
             const marks =
               calculateQuestionMark(
@@ -794,6 +833,10 @@ export default function TeacherMarksPage() {
 
   // ==========================================================
   // CHECK QUESTIONS
+  //
+  // Any Part (required or optional) marked "not attempted"
+  // is skipped from the required-question check — the
+  // teacher has made an explicit decision about it.
   // ==========================================================
 
   const allQuestionsAnswered =
@@ -806,7 +849,6 @@ export default function TeacherMarksPage() {
         getParts().forEach(
           (part) => {
             if (
-              part.isOptional &&
               !isPartAttempted(part)
             ) {
               return;
@@ -948,6 +990,11 @@ export default function TeacherMarksPage() {
 
   // ==========================================================
   // BUILD MARK PAYLOAD
+  //
+  // Any Part (required or optional) marked "not attempted"
+  // has its question marks skipped from the payload — the
+  // backend derives the zero/exclude behaviour from
+  // partSelections, not from marks sent here.
   // ==========================================================
 
   const buildMarkPayload = () => {
@@ -961,12 +1008,11 @@ export default function TeacherMarksPage() {
         question.part;
 
       /*
-       * Optional skipped part:
+       * Any not-attempted part (required or optional):
        * don't send question marks.
        */
       if (
         part &&
-        part.isOptional &&
         !isPartAttempted(part)
       ) {
         continue;
@@ -1042,6 +1088,10 @@ export default function TeacherMarksPage() {
 
   // ==========================================================
   // BUILD PART SELECTION PAYLOAD
+  //
+  // Sent for every Part (required or optional) so the
+  // backend knows the teacher's explicit attempt/skip
+  // decision, not just the optional ones.
   // ==========================================================
 
   const buildPartSelectionPayload =
@@ -1059,11 +1109,9 @@ export default function TeacherMarksPage() {
           return {
             partId,
             attempted:
-              part.isOptional
-                ? isPartAttempted(
-                    part
-                  )
-                : true,
+              isPartAttempted(
+                part
+              ),
           };
         }
       );
@@ -1087,6 +1135,37 @@ export default function TeacherMarksPage() {
           "Student marks data not loaded"
         );
         return false;
+      }
+
+      /*
+       * CONFIRMATION:
+       * If any REQUIRED part is marked as not attempted,
+       * warn the teacher explicitly before saving — this
+       * will count as zero and lower the total, unlike
+       * skipping an optional part.
+       */
+      if (hasParts) {
+        const skippedRequiredParts =
+          getParts().filter(
+            (part) =>
+              !part.isOptional &&
+              !isPartAttempted(part)
+          );
+
+        if (skippedRequiredParts.length > 0) {
+          const names = skippedRequiredParts
+            .map((part) => part.name)
+            .join(", ");
+
+          const confirmed = window.confirm(
+            `"${names}" is a required Part marked as not attempted. ` +
+              `This will count as ZERO marks and will lower the student's total percentage. Continue?`
+          );
+
+          if (!confirmed) {
+            return false;
+          }
+        }
       }
 
       let markPayload = [];
@@ -1257,18 +1336,48 @@ export default function TeacherMarksPage() {
 
   // ==========================================================
   // PART TOTAL
+  //
+  // - Optional & not attempted -> fully excluded
+  //   (obtained=0, max=0)
+  // - Required & not attempted -> counted as zero
+  //   (obtained=0, max=full part total), so it visibly
+  //   drags the part (and overall) percentage down.
   // ==========================================================
 
   const calculatePartTotals = (
     part
   ) => {
-    if (
-      part.isOptional &&
-      !isPartAttempted(part)
-    ) {
+    const attempted =
+      isPartAttempted(part);
+
+    if (!attempted) {
+      if (part.isOptional) {
+        return {
+          obtained: 0,
+          max: 0,
+          percentage: 0,
+          skipped: true,
+        };
+      }
+
+      // Required but not attempted -> max still counts
+      let max = 0;
+
+      (
+        part.sections || []
+      ).forEach((section) => {
+        (
+          section.questions || []
+        ).forEach((question) => {
+          max += getQuestionMax(
+            question
+          );
+        });
+      });
+
       return {
         obtained: 0,
-        max: 0,
+        max,
         percentage: 0,
         skipped: true,
       };
@@ -1816,7 +1925,10 @@ export default function TeacherMarksPage() {
                         borderRadius: 3,
                         borderLeft: 5,
                         borderColor:
-                          part.isOptional
+                          !attempted &&
+                          !part.isOptional
+                            ? "error.main"
+                            : part.isOptional
                             ? "warning.main"
                             : "primary.main",
                       }}
@@ -1888,40 +2000,62 @@ export default function TeacherMarksPage() {
                           </Box>
 
                           <Box>
-                            {part.isOptional ? (
-                              <FormControlLabel
-                                control={
-                                  <Checkbox
-                                    checked={
-                                      attempted
-                                    }
-                                    onChange={(
-                                      e
-                                    ) =>
-                                      handlePartSelectionChange(
-                                        part._id ||
-                                          part.partId,
-                                        e.target
-                                          .checked
-                                      )
-                                    }
-                                    disabled={
-                                      saving
-                                    }
-                                  />
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={
+                                    attempted
+                                  }
+                                  onChange={(
+                                    e
+                                  ) =>
+                                    handlePartSelectionChange(
+                                      part._id ||
+                                        part.partId,
+                                      e.target
+                                        .checked
+                                    )
+                                  }
+                                  disabled={
+                                    saving
+                                  }
+                                  color={
+                                    !attempted &&
+                                    !part.isOptional
+                                      ? "error"
+                                      : "primary"
+                                  }
+                                />
+                              }
+                              label={
+                                attempted
+                                  ? "Attempt Part"
+                                  : part.isOptional
+                                  ? "Skip Part"
+                                  : "Mark as Not Attempted (Zero)"
+                              }
+                            />
+
+                            {!part.isOptional && (
+                              <Typography
+                                variant="caption"
+                                color={
+                                  !attempted
+                                    ? "error"
+                                    : "text.secondary"
                                 }
-                                label={
-                                  attempted
-                                    ? "Attempt Part"
-                                    : "Skip Part"
-                                }
-                              />
-                            ) : (
-                              <Chip
-                                label="Required Part"
-                                color="primary"
-                                variant="outlined"
-                              />
+                                sx={{
+                                  display:
+                                    "block",
+                                  maxWidth: 220,
+                                }}
+                              >
+                                Required Part —
+                                marking not
+                                attempted counts
+                                as zero and
+                                lowers the total.
+                              </Typography>
                             )}
                           </Box>
                         </Stack>
@@ -1932,19 +2066,19 @@ export default function TeacherMarksPage() {
                           }}
                         />
 
-                        {/* SKIPPED */}
+                        {/* SKIPPED / NOT ATTEMPTED */}
 
-                        {!attempted &&
-                        part.isOptional ? (
-                          <Alert severity="info">
-                            This optional
-                            part is skipped.
-                            Its marks are
-                            completely
-                            excluded from
-                            the final
-                            numerator and
-                            denominator.
+                        {!attempted ? (
+                          <Alert
+                            severity={
+                              part.isOptional
+                                ? "info"
+                                : "warning"
+                            }
+                          >
+                            {part.isOptional
+                              ? "This optional part is skipped. Its marks are completely excluded from the final numerator and denominator."
+                              : "This required part is marked as not attempted. It will count as ZERO marks and will still be included in the total denominator — lowering the overall percentage."}
                           </Alert>
                         ) : (
                           <Stack spacing={3}>
@@ -1999,7 +2133,10 @@ export default function TeacherMarksPage() {
                             p: 2,
                             borderRadius: 2,
                             bgcolor:
-                              "grey.50",
+                              !attempted &&
+                              !part.isOptional
+                                ? "error.50"
+                                : "grey.50",
                           }}
                         >
                           <Stack

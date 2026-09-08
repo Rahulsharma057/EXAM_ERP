@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -40,8 +39,10 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import ViewListIcon from "@mui/icons-material/ViewList";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 
 import { api } from "../../services/api";
+import AssessmentImportDialog from "./AssessmentImportDialog";
 
 const DEFAULT_SECTION_FORM = {
   name: "",
@@ -86,6 +87,8 @@ export default function AssessmentBuilder({
   const [sectionDialog, setSectionDialog] =
     useState(false);
   const [questionDialog, setQuestionDialog] =
+    useState(false);
+  const [importDialog, setImportDialog] =
     useState(false);
 
   const [editingPart, setEditingPart] =
@@ -1802,29 +1805,40 @@ const handleSaveSection = async () => {
             </Typography>
           </Box>
 
-          {hasParts ? (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() =>
-                openPartDialog()
-              }
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+              onClick={() => setImportDialog(true)}
               disabled={saving}
             >
-              Add Part
+              Import Questions
             </Button>
-          ) : (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() =>
-                openSectionDialog()
-              }
-              disabled={saving}
-            >
-              Add Section
-            </Button>
-          )}
+
+            {hasParts ? (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() =>
+                  openPartDialog()
+                }
+                disabled={saving}
+              >
+                Add Part
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() =>
+                  openSectionDialog()
+                }
+                disabled={saving}
+              >
+                Add Section
+              </Button>
+            )}
+          </Stack>
         </Box>
       </Paper>
 
@@ -2767,6 +2781,19 @@ const handleSaveSection = async () => {
         </DialogActions>
       </Dialog>
 
+      {/* ===================================================== */}
+      {/* IMPORT QUESTIONS DIALOG */}
+      {/* ===================================================== */}
+
+      <AssessmentImportDialog
+        open={importDialog}
+        onClose={() => setImportDialog(false)}
+        assessment={assessment}
+        parts={parts}
+        sections={sections}
+        onImported={loadAssessment}
+      />
+
       {loading && (
         <Typography
           variant="body2"
@@ -2783,4 +2810,3 @@ const handleSaveSection = async () => {
     </Box>
   );
 }
-

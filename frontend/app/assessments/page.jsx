@@ -31,6 +31,7 @@ import {
   Tooltip,
   CircularProgress,
   Divider,
+  TableFooter
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -441,6 +442,7 @@ export default function AssessmentsPage() {
           justifyContent: "space-between",
           alignItems: "center",
           mb: 3,
+          m:3,
           gap: 2,
           flexWrap: "wrap",
         }}
@@ -467,6 +469,7 @@ export default function AssessmentsPage() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleCreateAssessment}
+          sx={{bgcolor:"rgb(43, 45, 156)"}}
         >
           Create Assessment
         </Button>
@@ -479,7 +482,7 @@ export default function AssessmentsPage() {
       <Paper
         sx={{
           p: 2,
-          mb: 3,
+          m: 3,
         }}
       >
         <Grid
@@ -514,280 +517,716 @@ export default function AssessmentsPage() {
       {/* =====================================================
           TABLE
       ===================================================== */}
+<TableContainer
+  component={Paper}
+  sx={{
+    mx: { xs: 0, sm: 2 },
+    mt: 2,
+    width: { xs: "100%", sm: "calc(100% - 32px)" },
+    maxWidth: "100%",
+    borderRadius: 3,
+    border: "1px solid #E2E8F0",
+    boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
+    overflowX: "auto",
+    overflowY: "hidden",
+  }}
+>
+  <Table
+    size="small"
+    sx={{
+      width: "100%",
+      minWidth: { xs: 900, md: "100%" },
+      tableLayout: "auto",
 
-      <TableContainer
-        component={Paper}
+      "& .MuiTableCell-root": {
+        borderColor: "#E8EDF3",
+        px: { xs: 1, sm: 1.5 },
+      },
+    }}
+  >
+    {/* =====================================================
+        TABLE HEADER
+    ===================================================== */}
+    <TableHead>
+      <TableRow
         sx={{
-          overflowX: "auto",
+          background:
+            "linear-gradient(90deg, #F5F9FF 0%, #FFFFFF 100%)",
         }}
       >
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
+        <TableCell
+          sx={{
+            fontWeight: 800,
+            color: "#172033",
+            py: 1.8,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Assessment
+        </TableCell>
 
-              <TableCell>
-                Week
-              </TableCell>
+        <TableCell
+          sx={{
+            fontWeight: 800,
+            color: "#172033",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Week
+        </TableCell>
 
-              <TableCell>
-                Batch
-              </TableCell>
+        <TableCell
+          sx={{
+            fontWeight: 800,
+            color: "#172033",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Batch
+        </TableCell>
 
-              <TableCell>
-                Status
-              </TableCell>
+        <TableCell
+          sx={{
+            fontWeight: 800,
+            color: "#172033",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Status
+        </TableCell>
 
-              <TableCell>
-                Total Marks
-              </TableCell>
+        <TableCell
+          sx={{
+            fontWeight: 800,
+            color: "#172033",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Total Marks
+        </TableCell>
 
-              <TableCell align="right">
-                Actions
-              </TableCell>
-            </TableRow>
-          </TableHead>
+        <TableCell
+          align="right"
+          sx={{
+            fontWeight: 800,
+            color: "#172033",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Actions
+        </TableCell>
+      </TableRow>
+    </TableHead>
 
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  align="center"
-                  sx={{ py: 6 }}
+    {/* =====================================================
+        TABLE BODY
+    ===================================================== */}
+    <TableBody>
+      {loading ? (
+        <TableRow>
+          <TableCell
+            colSpan={6}
+            align="center"
+            sx={{
+              py: 7,
+              borderBottom: "none",
+            }}
+          >
+            <CircularProgress
+              size={30}
+              thickness={4}
+              sx={{
+                color: "#1565C0",
+              }}
+            />
+
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                mt: 1.5,
+                fontWeight: 600,
+              }}
+            >
+              Loading assessments...
+            </Typography>
+          </TableCell>
+        </TableRow>
+      ) : assessments.length === 0 ? (
+        <TableRow>
+          <TableCell
+            colSpan={6}
+            align="center"
+            sx={{
+              py: 8,
+              borderBottom: "none",
+            }}
+          >
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                mx: "auto",
+                mb: 2,
+                borderRadius: 2.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#E3F2FD",
+                color: "#1565C0",
+              }}
+            >
+              <AssessmentIcon
+                sx={{
+                  fontSize: 32,
+                }}
+              />
+            </Box>
+
+            <Typography
+              variant="h6"
+              fontWeight={750}
+              sx={{
+                color: "#172033",
+              }}
+            >
+              No assessments found
+            </Typography>
+
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                mt: 0.6,
+              }}
+            >
+              There are no assessments matching your
+              current filters.
+            </Typography>
+          </TableCell>
+        </TableRow>
+      ) : (
+        assessments.map((a) => (
+          <TableRow
+            key={a._id}
+            hover
+            sx={{
+              transition: "background-color 0.2s ease",
+
+              "&:hover": {
+                backgroundColor: "#F8FBFF",
+              },
+
+              "&:last-child td": {
+                borderBottom: 0,
+              },
+            }}
+          >
+            {/* =================================================
+                NAME
+            ================================================= */}
+            <TableCell>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.2,
+                  minWidth: 180,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    flexShrink: 0,
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#E3F2FD",
+                    color: "#1565C0",
+                  }}
                 >
-                  <CircularProgress
-                    size={28}
+                  <AssessmentIcon
+                    fontSize="small"
                   />
+                </Box>
 
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ mt: 1 }}
-                  >
-                    Loading assessments...
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : assessments.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  align="center"
-                  sx={{ py: 6 }}
+                <Box
+                  sx={{
+                    minWidth: 0,
+                  }}
                 >
                   <Typography
-                    color="text.secondary"
+                    fontWeight={750}
+                    sx={{
+                      color: "#172033",
+                      maxWidth: 250,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
                   >
-                    No assessments found
+                    {a.name || "Untitled Assessment"}
                   </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              assessments.map((a) => (
-                <TableRow
-                  key={a._id}
-                  hover
-                >
-                  {/* NAME */}
 
-                  <TableCell>
-                    <Typography fontWeight={600}>
-                      {a.name}
+                  {a.code && (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#64748B",
+                        display: "block",
+                        mt: 0.25,
+                      }}
+                    >
+                      {a.code}
                     </Typography>
+                  )}
+                </Box>
+              </Box>
+            </TableCell>
 
-                    {a.code && (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        {a.code}
-                      </Typography>
-                    )}
-                  </TableCell>
+            {/* =================================================
+                WEEK
+            ================================================= */}
+            <TableCell>
+              <Chip
+                size="small"
+                label={`Week ${a.weekNumber ?? "-"}`}
+                sx={{
+                  height: 28,
+                  borderRadius: 1.5,
+                  backgroundColor: "#F3E5F5",
+                  color: "#7B1FA2",
+                  border: "1px solid #E1BEE7",
+                  fontWeight: 750,
+                  fontSize: "0.72rem",
+                }}
+              />
+            </TableCell>
 
-                  {/* WEEK */}
+            {/* =================================================
+                BATCH
+            ================================================= */}
+            <TableCell>
+              <Box
+                sx={{
+                  minWidth: 130,
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  fontWeight={650}
+                  sx={{
+                    color: "#172033",
+                    maxWidth: 180,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {a.batch?.name || "-"}
+                </Typography>
 
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={`Week ${a.weekNumber}`}
-                      variant="outlined"
-                    />
-                  </TableCell>
+                {a.course?.name && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "#64748B",
+                      display: "block",
+                      mt: 0.25,
+                      maxWidth: 180,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {a.course.name}
+                  </Typography>
+                )}
+              </Box>
+            </TableCell>
 
-                  {/* BATCH */}
+            {/* =================================================
+                STATUS
+            ================================================= */}
+            <TableCell>
+              <Chip
+                size="small"
+                label={a.status || "UNKNOWN"}
+                sx={{
+                  height: 28,
+                  borderRadius: 1.5,
+                  fontWeight: 750,
+                  fontSize: "0.72rem",
+                  border: "1px solid",
 
-                  <TableCell>
-                    {a.batch?.name || "-"}
-                  </TableCell>
-
-                  {/* STATUS */}
-
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={a.status}
-                      color={
-                        STATUS_COLORS[
-                          a.status
-                        ] || "default"
+                  ...(a.status === "PUBLISHED"
+                    ? {
+                        backgroundColor: "#E8F5E9",
+                        color: "#2E7D32",
+                        borderColor: "#A5D6A7",
                       }
+                    : a.status === "DRAFT"
+                    ? {
+                        backgroundColor: "#F1F5F9",
+                        color: "#475569",
+                        borderColor: "#CBD5E1",
+                      }
+                    : a.status === "SCHEDULED"
+                    ? {
+                        backgroundColor: "#E3F2FD",
+                        color: "#1565C0",
+                        borderColor: "#90CAF9",
+                      }
+                    : a.status === "CLOSED"
+                    ? {
+                        backgroundColor: "#FFEBEE",
+                        color: "#D32F2F",
+                        borderColor: "#EF9A9A",
+                      }
+                    : a.status === "ARCHIVED"
+                    ? {
+                        backgroundColor: "#FFF3E0",
+                        color: "#E65100",
+                        borderColor: "#FFCC80",
+                      }
+                    : {
+                        backgroundColor: "#F8FAFC",
+                        color: "#64748B",
+                        borderColor: "#CBD5E1",
+                      }),
+                }}
+              />
+            </TableCell>
+
+            {/* =================================================
+                TOTAL MARKS
+            ================================================= */}
+            <TableCell>
+              <Box>
+                <Typography
+                  fontWeight={800}
+                  sx={{
+                    color: "#172033",
+                  }}
+                >
+                  {a.totalMarks || 0}
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "#64748B",
+                  }}
+                >
+                  Total marks
+                </Typography>
+              </Box>
+            </TableCell>
+
+            {/* =================================================
+                ACTIONS
+            ================================================= */}
+            <TableCell align="right">
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  gap: 0.2,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {/* VIEW */}
+                <Tooltip title="View Assessment">
+                  <IconButton
+                    size="small"
+                    onClick={() =>
+                      router.push(
+                        `/assessments/${a._id}`
+                      )
+                    }
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      color: "#1565C0",
+
+                      "&:hover": {
+                        backgroundColor: "#E3F2FD",
+                      },
+                    }}
+                  >
+                    <VisibilityIcon
+                      fontSize="small"
                     />
-                  </TableCell>
+                  </IconButton>
+                </Tooltip>
 
-                  {/* MARKS */}
+                {/* EDIT */}
+                {a.status === "DRAFT" && (
+                  <Tooltip title="Edit Assessment">
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        router.push(
+                          `/assessments/${a._id}/edit`
+                        )
+                      }
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        color: "#ED6C02",
 
-                  <TableCell>
-                    {a.totalMarks || 0}
-                  </TableCell>
+                        "&:hover": {
+                          backgroundColor: "#FFF3E0",
+                        },
+                      }}
+                    >
+                      <EditIcon
+                        fontSize="small"
+                      />
+                    </IconButton>
+                  </Tooltip>
+                )}
 
-                  {/* ACTIONS */}
+                {/* DUPLICATE */}
+                <Tooltip title="Duplicate Assessment">
+                  <IconButton
+                    size="small"
+                    onClick={() =>
+                      openDuplicateDialog(a)
+                    }
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      color: "#7B1FA2",
 
-                  <TableCell align="right">
-                    {/* VIEW */}
+                      "&:hover": {
+                        backgroundColor: "#F3E5F5",
+                      },
+                    }}
+                  >
+                    <FileCopyIcon
+                      fontSize="small"
+                    />
+                  </IconButton>
+                </Tooltip>
 
-                    <Tooltip title="View Assessment">
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          router.push(
-                            `/assessments/${a._id}`
-                          )
-                        }
-                      >
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                {/* PUBLISH */}
+                {a.status === "DRAFT" && (
+                  <Tooltip title="Publish Assessment">
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        handlePublish(a._id)
+                      }
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        color: "#2E7D32",
 
-                    {/* EDIT */}
+                        "&:hover": {
+                          backgroundColor: "#E8F5E9",
+                        },
+                      }}
+                    >
+                      <PublishIcon
+                        fontSize="small"
+                      />
+                    </IconButton>
+                  </Tooltip>
+                )}
 
-                    {a.status === "DRAFT" && (
-                      <Tooltip title="Edit Assessment">
-                        <IconButton
-                          size="small"
-                          onClick={() =>
-                            router.push(
-                              `/assessments/${a._id}/edit`
-                            )
-                          }
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                {/* ENTER MARKS */}
+                {(a.status === "PUBLISHED" ||
+                  a.status === "CLOSED") && (
+                  <Tooltip title="Enter Marks">
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        router.push(
+                          `/assessments/${a._id}/marks`
+                        )
+                      }
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        color: "#1565C0",
 
-                    {/* DUPLICATE */}
+                        "&:hover": {
+                          backgroundColor: "#E3F2FD",
+                        },
+                      }}
+                    >
+                      <GradingIcon
+                        fontSize="small"
+                      />
+                    </IconButton>
+                  </Tooltip>
+                )}
 
-                    <Tooltip title="Duplicate Assessment">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() =>
-                          openDuplicateDialog(a)
-                        }
-                      >
-                        <FileCopyIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                {/* RESULTS */}
+                <Tooltip title="View Results">
+                  <IconButton
+                    size="small"
+                    onClick={() =>
+                      router.push(
+                        `/assessments/${a._id}/results`
+                      )
+                    }
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      color: "#0D47A1",
 
-                    {/* PUBLISH */}
+                      "&:hover": {
+                        backgroundColor: "#E3F2FD",
+                      },
+                    }}
+                  >
+                    <AssessmentIcon
+                      fontSize="small"
+                    />
+                  </IconButton>
+                </Tooltip>
 
-                    {a.status === "DRAFT" && (
-                      <Tooltip title="Publish Assessment">
-                        <IconButton
-                          size="small"
-                          color="success"
-                          onClick={() =>
-                            handlePublish(a._id)
-                          }
-                        >
-                          <PublishIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                {/* DELETE */}
+                {a.status === "DRAFT" && (
+                  <Tooltip title="Delete Assessment">
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        handleDelete(a._id)
+                      }
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        color: "#D32F2F",
 
-                    {/* ENTER MARKS */}
+                        "&:hover": {
+                          backgroundColor: "#FFEBEE",
+                        },
+                      }}
+                    >
+                      <DeleteIcon
+                        fontSize="small"
+                      />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            </TableCell>
+          </TableRow>
+        ))
+      )}
+    </TableBody>
 
-                    {(
-                      a.status === "PUBLISHED" ||
-                      a.status === "CLOSED"
-                    ) && (
-                      <Tooltip title="Enter Marks">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() =>
-                            router.push(
-                              `/assessments/${a._id}/marks`
-                            )
-                          }
-                        >
-                          <GradingIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+    {/* =====================================================
+        PAGINATION INSIDE TABLE
+    ===================================================== */}
+    {!loading && assessments.length > 0 && (
+      <TableFooter>
+        <TableRow>
+          <TableCell
+            colSpan={6}
+            sx={{
+              borderTop: "1px solid #E2E8F0",
+              backgroundColor: "#FAFCFF",
+              py: 1.5,
+              px: 2,
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 2,
+                flexWrap: "wrap",
+              }}
+            >
+              {/* PAGINATION INFO */}
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "#64748B",
+                  fontWeight: 600,
+                }}
+              >
+                Showing{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    color: "#172033",
+                    fontWeight: 800,
+                  }}
+                >
+                  {(page - 1) * limit + 1}
+                </Box>{" "}
+                -{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    color: "#172033",
+                    fontWeight: 800,
+                  }}
+                >
+                  {Math.min(page * limit, total)}
+                </Box>{" "}
+                of{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    color: "#1565C0",
+                    fontWeight: 800,
+                  }}
+                >
+                  {total}
+                </Box>{" "}
+                assessments
+              </Typography>
 
-                    {/* RESULTS */}
+              {/* PAGINATION */}
+              <Pagination
+                count={Math.max(
+                  1,
+                  Math.ceil(total / limit)
+                )}
+                page={page}
+                onChange={(e, value) => {
+                  setPage(value);
+                }}
+                color="primary"
+                shape="rounded"
+                size="small"
+                siblingCount={1}
+                boundaryCount={1}
+                sx={{
+                  "& .MuiPaginationItem-root": {
+                    minWidth: 30,
+                    height: 30,
+                    borderRadius: 1.5,
+                    fontWeight: 700,
+                  },
 
-                    <Tooltip title="View Results">
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          router.push(
-                            `/assessments/${a._id}/results`
-                          )
-                        }
-                      >
-                        <AssessmentIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                  "& .MuiPaginationItem-root.Mui-selected": {
+                    backgroundColor: "#1565C0",
+                    color: "#FFFFFF",
 
-                    {/* DELETE */}
-
-                    {a.status === "DRAFT" && (
-                      <Tooltip title="Delete Assessment">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() =>
-                            handleDelete(a._id)
-                          }
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* =====================================================
-          PAGINATION
-      ===================================================== */}
-
-      <Box
-        sx={{
-          mt: 2,
-          display: "flex",
-          justifyContent: "center",
-        }}
-      >
-        <Pagination
-          count={Math.max(
-            1,
-            Math.ceil(total / limit)
-          )}
-          page={page}
-          onChange={(e, value) =>
-            setPage(value)
-          }
-        />
-      </Box>
+                    "&:hover": {
+                      backgroundColor: "#0D47A1",
+                    },
+                  },
+                }}
+              />
+            </Box>
+          </TableCell>
+        </TableRow>
+      </TableFooter>
+    )}
+  </Table>
+</TableContainer>
 
       {/* =====================================================
           DUPLICATE ASSESSMENT DIALOG

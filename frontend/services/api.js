@@ -1,4 +1,3 @@
-
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -547,6 +546,56 @@ export const api = {
     ),
 
   // ==========================================================
+  // ASSESSMENT QUESTION IMPORT (PDF/DOCX/photo → draft questions)
+  // ==========================================================
+
+  // Step 1: upload a file → get back extracted draft questions
+  // (multipart upload, so this cannot go through the shared
+  // request() helper, which always sends Content-Type: application/json)
+  extractAssessmentQuestions: async (assessmentId, formData) => {
+    if (!assessmentId) {
+      throw new Error("Assessment is required");
+    }
+
+    const res = await fetch(
+      `${API_BASE}/assessment-import/assessments/${assessmentId}/extract`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: formData,
+      },
+    );
+
+    let data;
+
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error("Server returned an invalid response");
+    }
+
+    if (!res.ok || data?.success === false) {
+      throw new Error(
+        data?.message || `Question extraction failed (${res.status})`,
+      );
+    }
+
+    return data;
+  },
+
+  // Step 2: save the reviewed/edited questions for real
+  commitImportedQuestions: (assessmentId, payload) =>
+    request(
+      `/assessment-import/assessments/${assessmentId}/commit`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  // ==========================================================
   // SUBMISSIONS
   // ==========================================================
 
@@ -1074,4 +1123,3 @@ export const api = {
     return true;
   },
 };
-

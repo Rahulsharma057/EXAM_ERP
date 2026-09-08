@@ -3,10 +3,20 @@ const Batch = require('../models/Batch');
 
 exports.getStudents = async (req, res) => {
   try {
-    const { batch, search, page = 1, limit = 50 } = req.query;
+    const { batch, organisation, centre, course, search } = req.query;
+
+    // Guard page/limit so bad or missing query params can't produce
+    // NaN skip/limit values or a 0/negative limit.
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 50));
+
     const filter = { isActive: true };
 
+    if (organisation) filter.organisation = organisation;
+    if (centre) filter.centre = centre;
+    if (course) filter.course = course;
     if (batch) filter.batch = batch;
+
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -14,21 +24,27 @@ exports.getStudents = async (req, res) => {
       ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (page - 1) * limit;
+
     const [students, total] = await Promise.all([
       Student.find(filter)
         .populate('batch', 'name')
         .populate('course', 'name')
         .sort('rollNumber')
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(limit),
       Student.countDocuments(filter)
     ]);
 
     res.json({
       success: true,
       data: students,
-      pagination: { page: parseInt(page), limit: parseInt(limit), total }
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit))
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

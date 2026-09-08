@@ -308,9 +308,6 @@ exports.getAssessmentResults = async (req, res) => {
     // "structure" (parts/sections list) is needed by the
     // frontend to build part-wise / section-wise columns
     // in the results table AND the export field checkboxes.
-    // Without this, ResultsTable receives empty parts/sections
-    // and the Excel export options for Parts/Sections stay
-    // empty, so those fields never get exported.
     // ========================================================
 
     const [students, submissions, structure] =
@@ -546,19 +543,6 @@ exports.getAssessmentResults = async (req, res) => {
           batch: assessment.batch,
           course: assessment.course,
         },
-
-        // ====================================================
-        // NEW: Parts / Sections structure
-        //
-        // Needed by the frontend (ResultsTable) to:
-        //  1. Render part-wise / section-wise columns
-        //  2. Build the Export dialog's Part/Section checkboxes
-        //
-        // Direct-section assessments -> hasParts=false ->
-        //   parts=[] and sections=[...] (flat list)
-        // Part-based assessments -> hasParts=true ->
-        //   parts=[{ ...part, sections:[...] }] and sections=[]
-        // ====================================================
 
         hasParts: Boolean(assessment.hasParts),
 
@@ -2273,10 +2257,24 @@ exports.getStudentMarksEntry =
 // 1. Assessment -> Sections -> Questions
 // 2. Assessment -> Parts -> Sections -> Questions
 //
-// Optional Part:
-// attempted=false
-// => obtained=0, max=0
-// => completely excluded from denominator
+// PART ATTEMPT RULES
+// -------------------
+// A Part can be explicitly marked as "not attempted" via
+// partSelections, REGARDLESS of whether it is optional or
+// required. What differs is how a "not attempted" Part is
+// scored:
+//
+//   Optional Part, not attempted  -> FULLY EXCLUDED
+//     obtainedMarks = 0, maxMarks = 0
+//     (does not affect the denominator at all)
+//
+//   Required Part, not attempted  -> COUNTED AS ZERO
+//     obtainedMarks = 0, maxMarks = full section total
+//     (drags the overall percentage down, like a real
+//      exam where an unanswered required part scores 0)
+//
+// If a Part has no explicit selection, it defaults to
+// "attempted" whether required or optional.
 // ============================================================
 
 exports.saveStudentMarks =
@@ -2421,6 +2419,12 @@ exports.saveStudentMarks =
 
       // ========================================================
       // DETERMINE PART ATTEMPT STATUS
+      //
+      // Explicit selection from the frontend wins for BOTH
+      // required and optional Parts. Only when there is no
+      // explicit selection do we fall back to defaults
+      // (existing submission value for optional Parts, or
+      // simply "attempted" otherwise).
       // ========================================================
 
       const partAttemptMap =
@@ -2428,44 +2432,48 @@ exports.saveStudentMarks =
 
       if (assessment.hasParts) {
         for (const part of structure.parts) {
-          if (!part.isOptional) {
-            // Required Part
-            partAttemptMap.set(
-              part._id.toString(),
-              true
-            );
+          const partKey =
+            part._id.toString();
 
-            continue;
-          }
-
-          // Explicit selection wins
+          // Explicit selection always wins
           if (
             partSelectionMap.has(
-              part._id.toString()
+              partKey
             )
           ) {
             partAttemptMap.set(
-              part._id.toString(),
+              partKey,
               partSelectionMap.get(
-                part._id.toString()
+                partKey
               )
             );
 
             continue;
           }
 
-          // Existing submission selection
+          if (!part.isOptional) {
+            // Required Part, no explicit selection
+            // -> default attempted
+            partAttemptMap.set(
+              partKey,
+              true
+            );
+
+            continue;
+          }
+
+          // Existing submission selection (optional Part)
           const existingPart =
             existingSubmission?.partScores?.find(
               (item) =>
                 item.partId &&
                 item.partId.toString() ===
-                  part._id.toString()
+                  partKey
             );
 
           if (existingPart) {
             partAttemptMap.set(
-              part._id.toString(),
+              partKey,
               Boolean(
                 existingPart.attempted
               )
@@ -2476,7 +2484,7 @@ exports.saveStudentMarks =
 
           // Default optional Part = attempted
           partAttemptMap.set(
-            part._id.toString(),
+            partKey,
             true
           );
         }
@@ -2549,6 +2557,11 @@ exports.saveStudentMarks =
 
       // ========================================================
       // VALIDATE MARKS
+      //
+      // If a Part (required or optional) is marked as not
+      // attempted, its questions are simply skipped here
+      // instead of blocking the save with a "missing marks"
+      // error.
       // ========================================================
 
       for (const {
@@ -2569,11 +2582,11 @@ exports.saveStudentMarks =
           ) !== false;
 
         // ------------------------------------------------------
-        // SKIPPED OPTIONAL PART
+        // NOT-ATTEMPTED PART (required or optional)
         // ------------------------------------------------------
 
         if (!partAttempted) {
-          // If marks are sent for skipped Part,
+          // If marks are sent for a not-attempted Part,
           // reject instead of silently accepting.
           if (
             marksMap.has(
@@ -2588,7 +2601,7 @@ exports.saveStudentMarks =
             return res.status(400).json({
               success: false,
               message:
-                `Marks cannot be entered for skipped optional Part question: ${question.questionText}`,
+                `Marks cannot be entered for a Part marked as not attempted: ${question.questionText}`,
             });
           }
 
@@ -2962,6 +2975,12 @@ exports.saveStudentMarks =
 
       // ========================================================
       // SECTION SCORES
+      //
+      // - Optional Part skipped -> section FULLY EXCLUDED
+      //   (obtainedMarks = 0, maxMarks = 0)
+      // - Required Part not attempted -> section COUNTS AS
+      //   ZERO (obtainedMarks = 0, maxMarks = full section
+      //   total), so it drags the overall percentage down.
       // ========================================================
 
       const sectionScores =
@@ -2974,12 +2993,26 @@ exports.saveStudentMarks =
         const partId =
           section.part?.toString();
 
+        const part =
+          assessment.hasParts &&
+          partId
+            ? structure.parts.find(
+                (item) =>
+                  item._id.toString() ===
+                  partId
+              )
+            : null;
+
         const attempted =
           !assessment.hasParts ||
           !partId ||
           partAttemptMap.get(
             partId
           ) !== false;
+
+        const isOptionalSkip =
+          !attempted &&
+          Boolean(part?.isOptional);
 
         let obtainedMarks = 0;
         let maxMarks = 0;
@@ -2999,7 +3032,26 @@ exports.saveStudentMarks =
                   0
               );
           }
+        } else if (!isOptionalSkip) {
+          // Required Part not attempted ->
+          // zero obtained, but max marks still
+          // count toward the denominator.
+          maxMarks =
+            questions.reduce(
+              (
+                sum,
+                question
+              ) =>
+                sum +
+                Number(
+                  question.maxPoints ||
+                    0
+                ),
+              0
+            );
         }
+        // else: optional skip ->
+        // obtainedMarks = 0, maxMarks = 0 (defaults above)
 
         const percentage =
           maxMarks > 0
@@ -3007,16 +3059,6 @@ exports.saveStudentMarks =
                 maxMarks) *
               100
             : 0;
-
-        const part =
-          assessment.hasParts &&
-          partId
-            ? structure.parts.find(
-                (item) =>
-                  item._id.toString() ===
-                  partId
-              )
-            : null;
 
         sectionScores.push({
           sectionId:
@@ -3050,6 +3092,12 @@ exports.saveStudentMarks =
 
       // ========================================================
       // PART SCORES
+      //
+      // - Optional + not attempted -> fully excluded
+      //   (maxMarks = 0)
+      // - Required + not attempted -> counted as zero
+      //   (obtainedMarks = 0, maxMarks = full section total,
+      //   pulled from sectionScores computed above)
       // ========================================================
 
       const partScores =
@@ -3062,41 +3110,6 @@ exports.saveStudentMarks =
               part._id.toString()
             ) !== false;
 
-          if (!attempted) {
-            // IMPORTANT:
-            // maxMarks = 0 means this optional Part
-            // is completely excluded from final denominator.
-            partScores.push({
-              partId:
-                part._id,
-
-              partName:
-                part.name,
-
-              partCode:
-                part.code,
-
-              isOptional:
-                Boolean(
-                  part.isOptional
-                ),
-
-              attempted:
-                false,
-
-              obtainedMarks: 0,
-
-              maxMarks: 0,
-
-              percentage: 0,
-
-              displayOrder:
-                part.displayOrder,
-            });
-
-            continue;
-          }
-
           const partSections =
             sectionScores.filter(
               (section) =>
@@ -3104,6 +3117,82 @@ exports.saveStudentMarks =
                 section.partId.toString() ===
                   part._id.toString()
             );
+
+          if (!attempted) {
+            if (part.isOptional) {
+              // Fully excluded from denominator
+              partScores.push({
+                partId:
+                  part._id,
+
+                partName:
+                  part.name,
+
+                partCode:
+                  part.code,
+
+                isOptional:
+                  true,
+
+                attempted:
+                  false,
+
+                obtainedMarks: 0,
+
+                maxMarks: 0,
+
+                percentage: 0,
+
+                displayOrder:
+                  part.displayOrder,
+              });
+            } else {
+              // Required but not attempted ->
+              // counted as zero, max marks still
+              // included in the denominator.
+              const maxMarks =
+                partSections.reduce(
+                  (
+                    sum,
+                    section
+                  ) =>
+                    sum +
+                    Number(
+                      section.maxMarks ||
+                        0
+                    ),
+                  0
+                );
+
+              partScores.push({
+                partId:
+                  part._id,
+
+                partName:
+                  part.name,
+
+                partCode:
+                  part.code,
+
+                isOptional:
+                  false,
+
+                attempted:
+                  false,
+
+                obtainedMarks: 0,
+
+                maxMarks,
+
+                percentage: 0,
+
+                displayOrder:
+                  part.displayOrder,
+              });
+            }
+
+            continue;
+          }
 
           const obtainedMarks =
             partSections.reduce(
@@ -3175,7 +3264,12 @@ exports.saveStudentMarks =
       // ========================================================
       // OVERALL
       //
-      // totalMax only contains ATTEMPTED parts.
+      // - Optional Part skipped -> excluded (its maxMarks
+      //   is already 0, so this is mostly for clarity)
+      // - Required Part not attempted -> INCLUDED (its
+      //   maxMarks is the full section total, obtainedMarks
+      //   is 0), so it lowers the overall percentage exactly
+      //   like an unanswered required part in a real exam.
       // ========================================================
 
       let totalObtained = 0;
@@ -3183,7 +3277,10 @@ exports.saveStudentMarks =
 
       if (assessment.hasParts) {
         for (const part of partScores) {
-          if (!part.attempted) {
+          if (
+            !part.attempted &&
+            part.isOptional
+          ) {
             continue;
           }
 

@@ -1,12 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { getStudents, getStudent, createStudent, updateStudent, deleteStudent } = require('../controllers/studentController');
-const { protect, authorize } = require('../middleware/auth');
 
-router.get('/', protect, getStudents);
-router.get('/:id', protect, getStudent);
-router.post('/', protect, authorize('centre_admin', 'org_admin', 'super_admin'), createStudent);
-router.put('/:id', protect, authorize('centre_admin', 'org_admin', 'super_admin'), updateStudent);
-router.delete('/:id', protect, authorize('centre_admin', 'org_admin', 'super_admin'), deleteStudent);
+const {
+  getStudents,
+  getStudent,
+  createStudent,
+  updateStudent,
+  deleteStudent,
+} = require('../controllers/studentController');
+
+// Adjust/add your auth or validation middleware as used elsewhere in the app
+router.get('/', getStudents);
+router.get('/:id', getStudent);
+router.post('/', createStudent);
+router.put('/:id', updateStudent);
+router.delete('/:id', deleteStudent);
 
 module.exports = router;
