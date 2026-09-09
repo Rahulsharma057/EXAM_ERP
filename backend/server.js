@@ -38,7 +38,10 @@ const app = express();
 // ======================================================
 // CORS
 // ======================================================
-const allowedOrigins = [process.env.CLIENT_URL];
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "https://sso-portal-ten.vercel.app",
+].filter(Boolean);
 
 app.use(
   cors({
@@ -54,6 +57,11 @@ app.use(
 
       // Vercel preview deployments
       if (origin.endsWith(".vercel.app") && origin.includes("exam-")) {
+        return callback(null, true);
+      }
+
+      // Allow the SSO portal (production + any future preview deployments)
+      if (origin.endsWith(".vercel.app") && origin.includes("sso-portal")) {
         return callback(null, true);
       }
 
