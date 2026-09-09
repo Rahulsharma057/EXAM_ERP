@@ -1,14 +1,11 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 // ============================================================
 // TOKEN
 // ============================================================
 
 const getToken = () =>
-  typeof window !== "undefined"
-    ? localStorage.getItem("token")
-    : null;
+  typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
 // ============================================================
 // COMMON REQUEST
@@ -44,9 +41,7 @@ const request = async (endpoint, options = {}) => {
   }
 
   if (!res.ok) {
-    throw new Error(
-      data?.message || `Request failed (${res.status})`,
-    );
+    throw new Error(data?.message || `Request failed (${res.status})`);
   }
 
   return data;
@@ -111,20 +106,15 @@ export const api = {
   // HIERARCHY - READ ONLY
   // ==========================================================
 
-  getOrganisations: () =>
-    request("/auth/organisations"),
+  getOrganisations: () => request("/auth/organisations"),
 
-  getCentres: (orgId) =>
-    request(`/auth/organisations/${orgId}/centres`),
+  getCentres: (orgId) => request(`/auth/organisations/${orgId}/centres`),
 
-  getCourses: (centreId) =>
-    request(`/auth/centres/${centreId}/courses`),
+  getCourses: (centreId) => request(`/auth/centres/${centreId}/courses`),
 
-  getBatches: (courseId) =>
-    request(`/auth/courses/${courseId}/batches`),
+  getBatches: (courseId) => request(`/auth/courses/${courseId}/batches`),
 
-  getBatchStudents: (batchId) =>
-    request(`/auth/batches/${batchId}/students`),
+  getBatchStudents: (batchId) => request(`/auth/batches/${batchId}/students`),
 
   // ==========================================================
   // STUDENTS
@@ -133,22 +123,16 @@ export const api = {
   getStudents: (params = {}) => {
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) =>
-          value !== undefined &&
-          value !== null &&
-          value !== "",
+        ([, value]) => value !== undefined && value !== null && value !== "",
       ),
     );
 
     const query = new URLSearchParams(cleanParams).toString();
 
-    return request(
-      `/org/students${query ? `?${query}` : ""}`,
-    );
+    return request(`/org/students${query ? `?${query}` : ""}`);
   },
 
-  getStudent: (id) =>
-    request(`/org/students/${id}`),
+  getStudent: (id) => request(`/org/students/${id}`),
 
   createStudent: (data) =>
     request("/org/students", {
@@ -174,13 +158,10 @@ export const api = {
   getOrganisationsList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(
-      `/org/organisations${query ? `?${query}` : ""}`,
-    );
+    return request(`/org/organisations${query ? `?${query}` : ""}`);
   },
 
-  getOrganisation: (id) =>
-    request(`/org/organisations/${id}`),
+  getOrganisation: (id) => request(`/org/organisations/${id}`),
 
   createOrganisation: (data) =>
     request("/org/organisations", {
@@ -206,13 +187,10 @@ export const api = {
   getCentresList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(
-      `/org/centres${query ? `?${query}` : ""}`,
-    );
+    return request(`/org/centres${query ? `?${query}` : ""}`);
   },
 
-  getCentre: (id) =>
-    request(`/org/centres/${id}`),
+  getCentre: (id) => request(`/org/centres/${id}`),
 
   createCentre: (data) =>
     request("/org/centres", {
@@ -238,13 +216,10 @@ export const api = {
   getCoursesList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(
-      `/org/courses${query ? `?${query}` : ""}`,
-    );
+    return request(`/org/courses${query ? `?${query}` : ""}`);
   },
 
-  getCourse: (id) =>
-    request(`/org/courses/${id}`),
+  getCourse: (id) => request(`/org/courses/${id}`),
 
   createCourse: (data) =>
     request("/org/courses", {
@@ -270,13 +245,10 @@ export const api = {
   getBatchesList: (params = {}) => {
     const query = new URLSearchParams(params).toString();
 
-    return request(
-      `/org/batches${query ? `?${query}` : ""}`,
-    );
+    return request(`/org/batches${query ? `?${query}` : ""}`);
   },
 
-  getBatch: (id) =>
-    request(`/org/batches/${id}`),
+  getBatch: (id) => request(`/org/batches/${id}`),
 
   createBatch: (data) =>
     request("/org/batches", {
@@ -302,22 +274,16 @@ export const api = {
   getUsers: (params = {}) => {
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) =>
-          value !== undefined &&
-          value !== null &&
-          value !== "",
+        ([, value]) => value !== undefined && value !== null && value !== "",
       ),
     );
 
     const query = new URLSearchParams(cleanParams).toString();
 
-    return request(
-      `/users${query ? `?${query}` : ""}`,
-    );
+    return request(`/users${query ? `?${query}` : ""}`);
   },
 
-  getUser: (id) =>
-    request(`/users/${id}`),
+  getUser: (id) => request(`/users/${id}`),
 
   createUser: (data) =>
     request("/users", {
@@ -349,8 +315,7 @@ export const api = {
       method: "DELETE",
     }),
 
-  getUserStats: () =>
-    request("/users/stats"),
+  getUserStats: () => request("/users/stats"),
 
   // ==========================================================
   // ASSESSMENTS
@@ -359,22 +324,16 @@ export const api = {
   getAssessments: (params = {}) => {
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) =>
-          value !== undefined &&
-          value !== null &&
-          value !== "",
+        ([, value]) => value !== undefined && value !== null && value !== "",
       ),
     );
 
     const query = new URLSearchParams(cleanParams).toString();
 
-    return request(
-      `/assessments${query ? `?${query}` : ""}`,
-    );
+    return request(`/assessments${query ? `?${query}` : ""}`);
   },
 
-  getAssessment: (id) =>
-    request(`/assessments/${id}`),
+  getAssessment: (id) => request(`/assessments/${id}`),
 
   createAssessment: (data) =>
     request("/assessments", {
@@ -394,13 +353,10 @@ export const api = {
     }),
 
   duplicateAssessment: (assessmentId, data) =>
-    request(
-      `/assessments/${assessmentId}/duplicate`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    ),
+    request(`/assessments/${assessmentId}/duplicate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   publishAssessment: (id) =>
     request(`/assessments/${id}/publish`, {
@@ -423,8 +379,7 @@ export const api = {
       method: "POST",
     }),
 
-  getPreview: (id) =>
-    request(`/assessments/${id}/preview`),
+  getPreview: (id) => request(`/assessments/${id}/preview`),
 
   // ==========================================================
   // ASSESSMENT PARTS
@@ -432,23 +387,17 @@ export const api = {
 
   // Get all parts of assessment
   getAssessmentParts: (assessmentId) =>
-    request(
-      `/assessment-parts/assessments/${assessmentId}/parts`,
-    ),
+    request(`/assessment-parts/assessments/${assessmentId}/parts`),
 
   // Get single part
-  getAssessmentPart: (partId) =>
-    request(`/assessment-parts/${partId}`),
+  getAssessmentPart: (partId) => request(`/assessment-parts/${partId}`),
 
   // Create part
   createAssessmentPart: (assessmentId, data) =>
-    request(
-      `/assessment-parts/assessments/${assessmentId}/parts`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    ),
+    request(`/assessment-parts/assessments/${assessmentId}/parts`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // Update part
   updateAssessmentPart: (partId, data) =>
@@ -465,28 +414,22 @@ export const api = {
 
   // Reorder parts
   reorderAssessmentParts: (assessmentId, parts) =>
-    request(
-      `/assessment-parts/assessments/${assessmentId}/parts/reorder`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          parts,
-        }),
-      },
-    ),
+    request(`/assessment-parts/assessments/${assessmentId}/parts/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        parts,
+      }),
+    }),
 
   // ==========================================================
   // SECTIONS
   // ==========================================================
 
   createSection: (assessmentId, data) =>
-    request(
-      `/sections/assessments/${assessmentId}/sections`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    ),
+    request(`/sections/assessments/${assessmentId}/sections`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateSection: (id, data) =>
     request(`/sections/${id}`, {
@@ -500,28 +443,22 @@ export const api = {
     }),
 
   reorderSections: (assessmentId, sections) =>
-    request(
-      `/sections/assessments/${assessmentId}/sections/reorder`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          sections,
-        }),
-      },
-    ),
+    request(`/sections/assessments/${assessmentId}/sections/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        sections,
+      }),
+    }),
 
   // ==========================================================
   // QUESTIONS
   // ==========================================================
 
   createQuestion: (sectionId, data) =>
-    request(
-      `/questions/sections/${sectionId}/questions`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    ),
+    request(`/questions/sections/${sectionId}/questions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateQuestion: (id, data) =>
     request(`/questions/${id}`, {
@@ -535,15 +472,12 @@ export const api = {
     }),
 
   reorderQuestions: (sectionId, questions) =>
-    request(
-      `/questions/sections/${sectionId}/questions/reorder`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          questions,
-        }),
-      },
-    ),
+    request(`/questions/sections/${sectionId}/questions/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        questions,
+      }),
+    }),
 
   // ==========================================================
   // ASSESSMENT QUESTION IMPORT (PDF/DOCX/photo → draft questions)
@@ -587,81 +521,54 @@ export const api = {
 
   // Step 2: save the reviewed/edited questions for real
   commitImportedQuestions: (assessmentId, payload) =>
-    request(
-      `/assessment-import/assessments/${assessmentId}/commit`,
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-    ),
+    request(`/assessment-import/assessments/${assessmentId}/commit`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   // ==========================================================
   // SUBMISSIONS
   // ==========================================================
 
   createSubmission: (assessmentId, data) =>
-    request(
-      `/submissions/assessments/${assessmentId}/submissions`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    ),
+    request(`/submissions/assessments/${assessmentId}/submissions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   getSubmissions: (assessmentId) =>
-    request(
-      `/submissions/assessments/${assessmentId}/submissions`,
-    ),
+    request(`/submissions/assessments/${assessmentId}/submissions`),
 
-  getSubmission: (id) =>
-    request(`/submissions/${id}`),
+  getSubmission: (id) => request(`/submissions/${id}`),
 
   getCompletionStatus: (assessmentId) =>
-    request(
-      `/submissions/assessments/${assessmentId}/completion`,
-    ),
+    request(`/submissions/assessments/${assessmentId}/completion`),
 
   // ==========================================================
   // RESULTS
   // ==========================================================
 
-  getAssessmentResults: (
-    assessmentId,
-    params = {},
-  ) => {
+  getAssessmentResults: (assessmentId, params = {}) => {
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) =>
-          value !== undefined &&
-          value !== null &&
-          value !== "",
+        ([, value]) => value !== undefined && value !== null && value !== "",
       ),
     );
 
     const query = new URLSearchParams(cleanParams).toString();
 
     return request(
-      `/results/assessments/${assessmentId}/results${
-        query ? `?${query}` : ""
-      }`,
+      `/results/assessments/${assessmentId}/results${query ? `?${query}` : ""}`,
     );
   },
 
   getStudentResults: (studentId) =>
-    request(
-      `/results/students/${studentId}/assessment-results`,
-    ),
+    request(`/results/students/${studentId}/assessment-results`),
 
-  getBatchResults: (
-    batchId,
-    params = {},
-  ) => {
+  getBatchResults: (batchId, params = {}) => {
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) =>
-          value !== undefined &&
-          value !== null &&
-          value !== "",
+        ([, value]) => value !== undefined && value !== null && value !== "",
       ),
     );
 
@@ -674,10 +581,7 @@ export const api = {
     );
   },
 
-  getStudentSectionResults: (
-    assessmentId,
-    studentId,
-  ) =>
+  getStudentSectionResults: (assessmentId, studentId) =>
     request(
       `/results/assessments/${assessmentId}/students/${studentId}/sections`,
     ),
@@ -686,36 +590,21 @@ export const api = {
   // MARKS ENTRY
   // ==========================================================
 
-  getAssessmentStudentsForMarks: (
-    assessmentId,
-    search = "",
-  ) =>
+  getAssessmentStudentsForMarks: (assessmentId, search = "") =>
     request(
       `/results/assessments/${assessmentId}/marks/students${
-        search
-          ? `?search=${encodeURIComponent(search)}`
-          : ""
+        search ? `?search=${encodeURIComponent(search)}` : ""
       }`,
     ),
 
-  getStudentMarksEntry: (
-    assessmentId,
-    studentId,
-  ) =>
-    request(
-      `/results/assessments/${assessmentId}/marks/students/${studentId}`,
-    ),
+  getStudentMarksEntry: (assessmentId, studentId) =>
+    request(`/results/assessments/${assessmentId}/marks/students/${studentId}`),
 
   // ==========================================================
   // SAVE STUDENT MARKS
   // ==========================================================
 
-  saveStudentMarks: (
-    assessmentId,
-    studentId,
-    marks,
-    partSelections = [],
-  ) =>
+  saveStudentMarks: (assessmentId, studentId, marks, partSelections = []) =>
     request(
       `/results/assessments/${assessmentId}/marks/students/${studentId}`,
       {
@@ -754,8 +643,7 @@ export const api = {
       try {
         const data = await res.json();
 
-        message =
-          data?.message || message;
+        message = data?.message || message;
       } catch {}
 
       throw new Error(message);
@@ -763,28 +651,21 @@ export const api = {
 
     const blob = await res.blob();
 
-    const contentDisposition =
-      res.headers.get("Content-Disposition");
+    const contentDisposition = res.headers.get("Content-Disposition");
 
-    let filename =
-      "assessment-template.xlsx";
+    let filename = "assessment-template.xlsx";
 
     if (contentDisposition) {
-      const match =
-        contentDisposition.match(
-          /filename="?([^"]+)"?/i,
-        );
+      const match = contentDisposition.match(/filename="?([^"]+)"?/i);
 
       if (match?.[1]) {
         filename = match[1];
       }
     }
 
-    const url =
-      window.URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(blob);
 
-    const a =
-      document.createElement("a");
+    const a = document.createElement("a");
 
     a.href = url;
     a.download = filename;
@@ -804,136 +685,96 @@ export const api = {
   // EXCEL - EXPORT RESULTS
   // ==========================================================
 
-  exportResults: async (
-  assessmentId,
-  options = {}
-) => {
-  const token = getToken();
+  exportResults: async (assessmentId, options = {}) => {
+    const token = getToken();
 
-  const query = new URLSearchParams();
+    const query = new URLSearchParams();
 
-  query.set(
-    "options",
-    JSON.stringify(options)
-  );
+    query.set("options", JSON.stringify(options));
 
-  const response = await fetch(
-    `${API_BASE}/excel/assessments/${assessmentId}/export-results?${query.toString()}`,
-    {
-      method: "GET",
+    const response = await fetch(
+      `${API_BASE}/excel/assessments/${assessmentId}/export-results?${query.toString()}`,
+      {
+        method: "GET",
 
-      headers: {
-        Authorization: `Bearer ${token}`,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    }
-  );
-
-  if (!response.ok) {
-    let message =
-      "Failed to export results";
-
-    try {
-      const data =
-        await response.json();
-
-      message =
-        data?.message || message;
-    } catch {
-      // ignore
-    }
-
-    throw new Error(message);
-  }
-
-  const blob =
-    await response.blob();
-
-  const disposition =
-    response.headers.get(
-      "Content-Disposition"
     );
 
-  let fileName =
-    `Assessment_Results_${assessmentId}.xlsx`;
+    if (!response.ok) {
+      let message = "Failed to export results";
 
-  if (disposition) {
-    const match =
-      disposition.match(
-        /filename="?([^"]+)"?/i
-      );
+      try {
+        const data = await response.json();
 
-    if (match?.[1]) {
-      fileName = match[1];
+        message = data?.message || message;
+      } catch {
+        // ignore
+      }
+
+      throw new Error(message);
     }
-  }
 
-  const url =
-    window.URL.createObjectURL(blob);
+    const blob = await response.blob();
 
-  const link =
-    document.createElement("a");
+    const disposition = response.headers.get("Content-Disposition");
 
-  link.href = url;
-  link.download = fileName;
+    let fileName = `Assessment_Results_${assessmentId}.xlsx`;
 
-  document.body.appendChild(link);
+    if (disposition) {
+      const match = disposition.match(/filename="?([^"]+)"?/i);
 
-  link.click();
+      if (match?.[1]) {
+        fileName = match[1];
+      }
+    }
 
-  link.remove();
+    const url = window.URL.createObjectURL(blob);
 
-  window.URL.revokeObjectURL(url);
+    const link = document.createElement("a");
 
-  return true;
-},
+    link.href = url;
+    link.download = fileName;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+
+    return true;
+  },
 
   // ==========================================================
   // EXCEL - IMPORT MARKS
   // ==========================================================
 
-  importMarks: async (
-    assessmentId,
-    file,
-  ) => {
+  importMarks: async (assessmentId, file) => {
     if (!assessmentId) {
-      throw new Error(
-        "Assessment is required",
-      );
+      throw new Error("Assessment is required");
     }
 
     if (!file) {
-      throw new Error(
-        "Please select an Excel file",
-      );
+      throw new Error("Please select an Excel file");
     }
 
-    const allowedTypes = [
-      ".xlsx",
-      ".xls",
-      ".csv",
-    ];
+    const allowedTypes = [".xlsx", ".xls", ".csv"];
 
-    const fileName =
-      file.name.toLowerCase();
+    const fileName = file.name.toLowerCase();
 
-    const isAllowed =
-      allowedTypes.some((ext) =>
-        fileName.endsWith(ext),
-      );
+    const isAllowed = allowedTypes.some((ext) => fileName.endsWith(ext));
 
     if (!isAllowed) {
-      throw new Error(
-        "Please select a valid Excel file (.xlsx, .xls or .csv)",
-      );
+      throw new Error("Please select a valid Excel file (.xlsx, .xls or .csv)");
     }
 
-    const formData =
-      new FormData();
+    const formData = new FormData();
 
-    formData.append(
-      "file",
-      file,
-    );
+    formData.append("file", file);
 
     const res = await fetch(
       `${API_BASE}/excel/assessments/${assessmentId}/import-marks`,
@@ -953,19 +794,11 @@ export const api = {
     try {
       data = await res.json();
     } catch {
-      throw new Error(
-        "Server returned an invalid response",
-      );
+      throw new Error("Server returned an invalid response");
     }
 
-    if (
-      !res.ok ||
-      data?.success === false
-    ) {
-      throw new Error(
-        data?.message ||
-          `Marks import failed (${res.status})`,
-      );
+    if (!res.ok || data?.success === false) {
+      throw new Error(data?.message || `Marks import failed (${res.status})`);
     }
 
     return data;
@@ -975,66 +808,41 @@ export const api = {
   // EXCEL - IMPORT STUDENTS
   // ==========================================================
 
-  importStudents: async (
-    batchId,
-    file,
-  ) => {
+  importStudents: async (batchId, file) => {
     if (!batchId) {
-      throw new Error(
-        "Please select a Batch before importing students.",
-      );
+      throw new Error("Please select a Batch before importing students.");
     }
 
     if (!file) {
-      throw new Error(
-        "Please select an Excel/CSV file.",
-      );
+      throw new Error("Please select an Excel/CSV file.");
     }
 
-    const formData =
-      new FormData();
+    const formData = new FormData();
 
-    formData.append(
-      "file",
-      file,
-    );
+    formData.append("file", file);
 
-    formData.append(
-      "batchId",
-      batchId,
-    );
+    formData.append("batchId", batchId);
 
-    const res = await fetch(
-      `${API_BASE}/excel/import-students`,
-      {
-        method: "POST",
+    const res = await fetch(`${API_BASE}/excel/import-students`, {
+      method: "POST",
 
-        headers: {
-          Authorization: `Bearer ${getToken()}`,
-        },
-
-        body: formData,
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
       },
-    );
+
+      body: formData,
+    });
 
     let data;
 
     try {
       data = await res.json();
     } catch {
-      throw new Error(
-        "Server returned an invalid response.",
-      );
+      throw new Error("Server returned an invalid response.");
     }
 
-    if (
-      !res.ok ||
-      data?.success === false
-    ) {
-      throw new Error(
-        data?.message ||
-          `Student import failed (${res.status})`,
-      );
+    if (!res.ok || data?.success === false) {
+      throw new Error(data?.message || `Student import failed (${res.status})`);
     }
 
     return data;
@@ -1044,13 +852,9 @@ export const api = {
   // DOWNLOAD STUDENT TEMPLATE
   // ==========================================================
 
-  downloadStudentTemplate: async (
-    batchId,
-  ) => {
+  downloadStudentTemplate: async (batchId) => {
     if (!batchId) {
-      throw new Error(
-        "Please select a Batch first.",
-      );
+      throw new Error("Please select a Batch first.");
     }
 
     const res = await fetch(
@@ -1067,47 +871,34 @@ export const api = {
     );
 
     if (!res.ok) {
-      let message =
-        "Failed to download student template";
+      let message = "Failed to download student template";
 
       try {
-        const data =
-          await res.json();
+        const data = await res.json();
 
-        message =
-          data?.message || message;
+        message = data?.message || message;
       } catch {}
 
       throw new Error(message);
     }
 
-    const blob =
-      await res.blob();
+    const blob = await res.blob();
 
-    const contentDisposition =
-      res.headers.get(
-        "Content-Disposition",
-      );
+    const contentDisposition = res.headers.get("Content-Disposition");
 
-    let filename =
-      "student-import-template.xlsx";
+    let filename = "student-import-template.xlsx";
 
     if (contentDisposition) {
-      const match =
-        contentDisposition.match(
-          /filename="?([^"]+)"?/i,
-        );
+      const match = contentDisposition.match(/filename="?([^"]+)"?/i);
 
       if (match?.[1]) {
         filename = match[1];
       }
     }
 
-    const url =
-      window.URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(blob);
 
-    const a =
-      document.createElement("a");
+    const a = document.createElement("a");
 
     a.href = url;
     a.download = filename;

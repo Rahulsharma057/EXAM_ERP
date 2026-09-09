@@ -286,7 +286,7 @@ export default function StudentFormDialog({
             </Typography>
 
             <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Roll Number"
                   fullWidth
@@ -300,7 +300,7 @@ export default function StudentFormDialog({
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Student Name"
                   fullWidth
@@ -314,7 +314,7 @@ export default function StudentFormDialog({
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Father's Name"
                   fullWidth
@@ -325,7 +325,7 @@ export default function StudentFormDialog({
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Mother's Name"
                   fullWidth
@@ -336,7 +336,7 @@ export default function StudentFormDialog({
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Mobile"
                   fullWidth
@@ -347,7 +347,7 @@ export default function StudentFormDialog({
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Email"
                   type="email"
@@ -359,7 +359,7 @@ export default function StudentFormDialog({
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   select
                   label="Gender"
@@ -376,7 +376,7 @@ export default function StudentFormDialog({
                 </TextField>
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   label="Date of Birth"
                   type="date"

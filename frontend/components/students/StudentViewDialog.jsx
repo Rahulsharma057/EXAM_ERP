@@ -35,7 +35,7 @@ import {
 
 function DetailRow({ label, value }) {
   return (
-    <Grid size={{ xs: 12, sm: 6 }}>
+    <Grid item xs={12} sm={6}>
       <Typography
         sx={{
           fontSize: '11px',

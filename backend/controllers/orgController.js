@@ -4,50 +4,129 @@ const Course = require('../models/Course');
 const Batch = require('../models/Batch');
 const Student = require('../models/Student');
 
+// ==================== SHARED ERROR HANDLER ====================
+// Turns Mongoose CastError / ValidationError / duplicate-key (11000) into
+// clean, friendly responses instead of leaking raw Mongo error strings to
+// the UI. Used by the Organisation CRUD below.
+function handleMongoError(res, error, entityName = 'Organisation') {
+  if (error.name === 'CastError') {
+    return res.status(400).json({ success: false, message: `Invalid ${entityName} ID` });
+  }
+  if (error.name === 'ValidationError') {
+    const messages = Object.values(error.errors).map((e) => e.message);
+    return res.status(400).json({ success: false, message: messages.join(', ') });
+  }
+  if (error.code === 11000) {
+    const field = Object.keys(error.keyPattern || {})[0] || 'field';
+    return res.status(409).json({ success: false, message: `${entityName} with this ${field} already exists` });
+  }
+  console.error(error);
+  return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
+}
+
 // ==================== ORGANISATION ====================
 exports.getOrganisations = async (req, res) => {
   try {
     const { search, page = 1, limit = 20 } = req.query;
     const filter = { isActive: true };
-    if (search) filter.name = { $regex: search, $options: 'i' };
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { code: { $regex: search, $options: 'i' } },
+      ];
+    }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageNumber = Math.max(parseInt(page) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limit) || 20, 1), 500);
+    const skip = (pageNumber - 1) * limitNumber;
+
     const [data, total] = await Promise.all([
-      Organisation.find(filter).sort('name').skip(skip).limit(parseInt(limit)),
-      Organisation.countDocuments(filter)
+      Organisation.find(filter).sort('name').skip(skip).limit(limitNumber),
+      Organisation.countDocuments(filter),
     ]);
-    res.json({ success: true, data, pagination: { page: parseInt(page), limit: parseInt(limit), total } });
-  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    res.json({ success: true, data, pagination: { page: pageNumber, limit: limitNumber, total } });
+  } catch (error) {
+    handleMongoError(res, error);
+  }
 };
 
 exports.getOrganisation = async (req, res) => {
   try {
     const org = await Organisation.findById(req.params.id);
-    if (!org) return res.status(404).json({ success: false, message: 'Not found' });
+    if (!org) return res.status(404).json({ success: false, message: 'Organisation not found' });
     const centreCount = await Centre.countDocuments({ organisation: org._id, isActive: true });
     res.json({ success: true, data: { ...org.toObject(), centreCount } });
-  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+  } catch (error) {
+    handleMongoError(res, error);
+  }
 };
 
 exports.createOrganisation = async (req, res) => {
   try {
-    const org = await Organisation.create(req.body);
+    const { name, code, description, address, contactEmail, contactPhone } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Organisation name is required' });
+    }
+    if (!code || !code.trim()) {
+      return res.status(400).json({ success: false, message: 'Organisation code is required' });
+    }
+
+    const org = await Organisation.create({
+      name: name.trim(),
+      code: code.trim(),
+      description,
+      address,
+      contactEmail,
+      contactPhone,
+    });
     res.status(201).json({ success: true, data: org });
-  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+  } catch (error) {
+    handleMongoError(res, error);
+  }
 };
 
 exports.updateOrganisation = async (req, res) => {
   try {
-    const org = await Organisation.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const existing = await Organisation.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Organisation not found' });
+    }
+
+    const { name, code, description, address, contactEmail, contactPhone } = req.body;
+    if (name !== undefined && !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Organisation name cannot be empty' });
+    }
+    if (code !== undefined && !code.trim()) {
+      return res.status(400).json({ success: false, message: 'Organisation code cannot be empty' });
+    }
+
+    const org = await Organisation.findByIdAndUpdate(
+      req.params.id,
+      { name, code, description, address, contactEmail, contactPhone },
+      { new: true, runValidators: true }
+    );
     res.json({ success: true, data: org });
-  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+  } catch (error) {
+    handleMongoError(res, error);
+  }
 };
 
 exports.deleteOrganisation = async (req, res) => {
   try {
+    const existing = await Organisation.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Organisation not found' });
+    }
+    if (existing.isActive === false) {
+      return res.status(400).json({ success: false, message: 'Organisation is already inactive' });
+    }
+
     await Organisation.findByIdAndUpdate(req.params.id, { isActive: false });
     res.json({ success: true, message: 'Organisation deactivated' });
-  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+  } catch (error) {
+    handleMongoError(res, error);
+  }
 };
 
 // ==================== CENTRE ====================

@@ -216,8 +216,8 @@ export default function UsersPage() {
           response?.pagination?.total ??
             response?.total ??
             response?.count ??
-            data.length
-        )
+            data.length,
+        ),
       );
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -236,20 +236,35 @@ export default function UsersPage() {
     try {
       const response = await api.getUserStats();
 
-      if (response?.data) {
-        setStats({
-          total: response.data.total || 0,
-          active: response.data.active || 0,
-          inactive: response.data.inactive || 0,
-          super_admin: response.data.super_admin || 0,
-          org_admin: response.data.org_admin || 0,
-          centre_admin: response.data.centre_admin || 0,
-          teacher: response.data.teacher || 0,
-          student: response.data.student || 0,
-        });
-      }
+      console.log("USER STATS RESPONSE:", response);
+
+      const data = response?.data || {};
+      const byRole = data?.byRole || {};
+
+      setStats({
+        total: Number(data?.total ?? 0),
+        active: Number(data?.active ?? 0),
+        inactive: Number(data?.inactive ?? 0),
+
+        super_admin: Number(byRole?.super_admin ?? 0),
+        org_admin: Number(byRole?.org_admin ?? 0),
+        centre_admin: Number(byRole?.centre_admin ?? 0),
+        teacher: Number(byRole?.teacher ?? 0),
+        student: Number(byRole?.student ?? 0),
+      });
     } catch (error) {
       console.error("Failed to load user stats:", error);
+
+      setStats({
+        total: 0,
+        active: 0,
+        inactive: 0,
+        super_admin: 0,
+        org_admin: 0,
+        centre_admin: 0,
+        teacher: 0,
+        student: 0,
+      });
     }
   };
 
@@ -322,7 +337,7 @@ export default function UsersPage() {
 
       const batchIds =
         data?.batches?.map((batch) =>
-          typeof batch === "string" ? batch : batch?._id
+          typeof batch === "string" ? batch : batch?._id,
         ) || [];
 
       setForm({
@@ -370,18 +385,14 @@ export default function UsersPage() {
 
       if (data?.centre?._id || data?.centre) {
         const centreId =
-          typeof data.centre === "string"
-            ? data.centre
-            : data.centre._id;
+          typeof data.centre === "string" ? data.centre : data.centre._id;
 
         await loadCourses(centreId);
       }
 
       if (data?.course?._id || data?.course) {
         const courseId =
-          typeof data.course === "string"
-            ? data.course
-            : data.course._id;
+          typeof data.course === "string" ? data.course : data.course._id;
 
         await loadBatches(courseId);
       }
@@ -553,9 +564,7 @@ export default function UsersPage() {
 
     if (form.role === "teacher") {
       const selectedBatches =
-        typeof value === "string"
-          ? value.split(",")
-          : value;
+        typeof value === "string" ? value.split(",") : value;
 
       setForm((prev) => ({
         ...prev,
@@ -680,24 +689,15 @@ export default function UsersPage() {
       return "Centre is required";
     }
 
-    if (
-      ["teacher", "student"].includes(form.role) &&
-      !form.course
-    ) {
+    if (["teacher", "student"].includes(form.role) && !form.course) {
       return "Course is required";
     }
 
-    if (
-      form.role === "teacher" &&
-      form.batches.length === 0
-    ) {
+    if (form.role === "teacher" && form.batches.length === 0) {
       return "Select at least one batch for teacher";
     }
 
-    if (
-      form.role === "student" &&
-      form.batches.length !== 1
-    ) {
+    if (form.role === "student" && form.batches.length !== 1) {
       return "Select exactly one batch for student";
     }
 
@@ -764,25 +764,17 @@ export default function UsersPage() {
       }
 
       if (editingUser) {
-        await api.updateUser(
-          editingUser._id || editingUser.id,
-          payload
-        );
+        await api.updateUser(editingUser._id || editingUser.id, payload);
       } else {
         await api.createUser(payload);
       }
 
       handleCloseDialog();
 
-      await Promise.all([
-        loadUsers(),
-        loadStats(),
-      ]);
+      await Promise.all([loadUsers(), loadStats()]);
     } catch (error) {
       console.error(error);
-      setFormError(
-        error?.message || "Failed to save user"
-      );
+      setFormError(error?.message || "Failed to save user");
     } finally {
       setFormLoading(false);
     }
@@ -794,20 +786,12 @@ export default function UsersPage() {
 
   const handleToggleStatus = async (user) => {
     try {
-      await api.toggleUserStatus(
-        user._id || user.id
-      );
+      await api.toggleUserStatus(user._id || user.id);
 
-      await Promise.all([
-        loadUsers(),
-        loadStats(),
-      ]);
+      await Promise.all([loadUsers(), loadStats()]);
     } catch (error) {
       console.error(error);
-      alert(
-        error?.message ||
-          "Failed to change user status"
-      );
+      alert(error?.message || "Failed to change user status");
     }
   };
 
@@ -817,26 +801,18 @@ export default function UsersPage() {
 
   const handleDelete = async (user) => {
     const confirmed = window.confirm(
-      `Are you sure you want to deactivate "${user.name}"?`
+      `Are you sure you want to deactivate "${user.name}"?`,
     );
 
     if (!confirmed) return;
 
     try {
-      await api.deleteUser(
-        user._id || user.id
-      );
+      await api.deleteUser(user._id || user.id);
 
-      await Promise.all([
-        loadUsers(),
-        loadStats(),
-      ]);
+      await Promise.all([loadUsers(), loadStats()]);
     } catch (error) {
       console.error(error);
-      alert(
-        error?.message ||
-          "Failed to deactivate user"
-      );
+      alert(error?.message || "Failed to deactivate user");
     }
   };
 
@@ -867,9 +843,7 @@ export default function UsersPage() {
     }
 
     if (newPassword.length < 6) {
-      setPasswordError(
-        "Password must be at least 6 characters"
-      );
+      setPasswordError("Password must be at least 6 characters");
       return;
     }
 
@@ -879,15 +853,12 @@ export default function UsersPage() {
 
       await api.resetUserPassword(
         passwordUser._id || passwordUser.id,
-        newPassword
+        newPassword,
       );
 
       closePasswordDialog();
     } catch (error) {
-      setPasswordError(
-        error?.message ||
-          "Failed to reset password"
-      );
+      setPasswordError(error?.message || "Failed to reset password");
     } finally {
       setPasswordLoading(false);
     }
@@ -898,10 +869,7 @@ export default function UsersPage() {
   // ==========================================================
 
   const handleRefresh = async () => {
-    await Promise.all([
-      loadUsers(),
-      loadStats(),
-    ]);
+    await Promise.all([loadUsers(), loadStats()]);
   };
 
   // ==========================================================
@@ -954,12 +922,12 @@ export default function UsersPage() {
           px: {
             xs: 1,
             sm: 1.5,
-            md: 2,
+            md: 1,
           },
           py: {
             xs: 1.25,
             sm: 1.5,
-            md: 2,
+            md: 0,
           },
         }}
       >
@@ -969,150 +937,186 @@ export default function UsersPage() {
 
         <Box
           sx={{
-            mb: {
-              xs: 1.5,
-              md: 2,
-            },
+            mb: 1.5,
+            mx: -1,
+            p: { xs: 1.25, sm: 1.5 },
+            // borderRadius: 2.5,
+            background:
+              "linear-gradient(135deg, #15498d 0%, #283199 55%, #1a5793 100%)",
+            border: "1px solid #dbeafe",
+
             display: "flex",
             alignItems: {
               xs: "stretch",
               md: "center",
             },
             justifyContent: "space-between",
+
             flexDirection: {
               xs: "column",
               md: "row",
             },
+
             gap: {
-              xs: 1.25,
+              xs: 1,
               md: 1.5,
             },
-            minWidth: 0,
           }}
         >
-          <Box
-            sx={{
-              minWidth: 0,
-              flex: 1,
-            }}
-          >
-            <Typography
-              variant="h4"
-              fontWeight={800}
-              sx={{
-                mb: 0.25,
-                fontSize: {
-                  xs: "1.3rem",
-                  sm: "1.5rem",
-                  md: "1.7rem",
-                },
-                lineHeight: 1.2,
-              }}
-            >
-              User Management
-            </Typography>
+          <Box sx={{ minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Avatar
+                sx={{
+                  width: { xs: 34, sm: 40 },
+                  height: { xs: 34, sm: 40 },
+                  bgcolor: "#ab1919",
+                  borderRadius: 1.5,
+                }}
+              >
+                <People fontSize="small" />
+              </Avatar>
 
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{
-                fontSize: {
-                  xs: "0.72rem",
-                  sm: "0.78rem",
-                },
-              }}
-            >
-              Create, manage and control system
-              users and their access.
-            </Typography>
+              <Box sx={{ minWidth: 0, p: { xs: 0, sm: 0.5 } }}>
+                <Typography
+                  sx={{
+                    fontSize: {
+                      xs: "1.15rem",
+                      sm: "1.35rem",
+                      md: "1.5rem",
+                    },
+                    lineHeight: 1.15,
+                    fontWeight: 800,
+                    color: "#f6f8fc",
+                  }}
+                >
+                  User Management
+                </Typography>
+
+                <Typography
+                  sx={{
+                    mt: 0.2,
+                    fontSize: {
+                      xs: "0.68rem",
+                      sm: "0.74rem",
+                    },
+                    color: "#e1e5ea",
+                  }}
+                >
+                  Manage users, roles and access
+                </Typography>
+              </Box>
+            </Stack>
           </Box>
 
           <Stack
             direction="row"
             spacing={0.75}
             sx={{
-              flexShrink: 0,
               width: {
                 xs: "100%",
                 md: "auto",
               },
             }}
           >
-            <Tooltip title="Refresh">
-              <IconButton
-                onClick={handleRefresh}
-                size="small"
-                sx={{
-                  border: "1px solid",
-                  borderColor: "divider",
-                  width: 38,
-                  height: 38,
-                }}
-              >
-                <Refresh fontSize="small" />
-              </IconButton>
-            </Tooltip>
-
             <Button
-              fullWidth
               variant="contained"
               size="small"
-              startIcon={
-                <PersonAdd fontSize="small" />
-              }
+              startIcon={<PersonAdd fontSize="small" />}
               onClick={handleCreate}
               sx={{
-                minHeight: 38,
-                px: 1.75,
-                borderRadius: 1.5,
+                flex: {
+                  xs: 1,
+                  md: "unset",
+                },
+
+                minWidth: {
+                  xs: "100%",
+                  sm: 145,
+                  md: 155,
+                },
+
+                minHeight: 40,
+                px: 2.2,
+                py: 0.8,
+
+                //      borderRadius: 1.5,
                 textTransform: "none",
                 fontWeight: 700,
-                width: {
-                  xs: "100%",
-                  md: "auto",
+                fontSize: "0.875rem",
+
+                background:
+                  "linear-gradient(135deg, rgb(46, 187, 55) 0%, #35c533 100%)",
+
+                boxShadow: "0 3px 8px rgba(36, 209, 47, 0.18)",
+
+                transition: "all 0.2s ease",
+
+                "&:hover": {
+                  background:
+                    "linear-gradient(135deg, #32d43d 0%, #3ae038 100%)",
+                  boxShadow: "0 5px 14px rgba(36, 209, 47, 0.28)",
+                  transform: "translateY(-1px)",
+                },
+
+                "&:active": {
+                  transform: "translateY(0)",
+                },
+
+                "& .MuiButton-startIcon": {
+                  marginRight: 0.7,
                 },
               }}
             >
               Create User
             </Button>
+            <Tooltip title="Refresh">
+              <IconButton
+                onClick={handleRefresh}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 1.5,
+                  border: "1px solid #dbe3ef",
+                  background: "#fff",
+
+                  "&:hover": {
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                  },
+                }}
+              >
+                <Refresh fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Stack>
         </Box>
 
-        {/* ====================================================
-            STATS
-        ==================================================== */}
-
         <Grid
           container
-          spacing={{
-            xs: 1,
-            sm: 1.25,
-          }}
+          spacing={{ xs: 1, sm: 1.25, md: 1.5 }}
           sx={{
             mb: 1.5,
             width: "100%",
-            m: 0,
+            mx: 0,
           }}
         >
           <Grid item xs={6} sm={6} md={3}>
             <StatCard
               title="Total Users"
               value={stats.total}
-              icon={
-                <People fontSize="small" />
-              }
-              subtitle="All users"
+              icon={<People fontSize="small" />}
+              subtitle="All accounts"
+              accent="primary"
             />
           </Grid>
 
           <Grid item xs={6} sm={6} md={3}>
             <StatCard
-              title="Active Users"
+              title="Active"
               value={stats.active}
-              icon={
-                <CheckCircle fontSize="small" />
-              }
-              subtitle="Currently active"
+              icon={<CheckCircle fontSize="small" />}
+              subtitle="Active accounts"
+              accent="success"
             />
           </Grid>
 
@@ -1120,10 +1124,9 @@ export default function UsersPage() {
             <StatCard
               title="Teachers"
               value={stats.teacher}
-              icon={
-                <School fontSize="small" />
-              }
+              icon={<School fontSize="small" />}
               subtitle="Teacher accounts"
+              accent="info"
             />
           </Grid>
 
@@ -1131,73 +1134,95 @@ export default function UsersPage() {
             <StatCard
               title="Students"
               value={stats.student}
-              icon={
-                <People fontSize="small" />
-              }
+              icon={<People fontSize="small" />}
               subtitle="Student accounts"
+              accent="warning"
             />
           </Grid>
         </Grid>
-
         {/* ====================================================
             ROLE SUMMARY
         ==================================================== */}
 
-        <Card
-          sx={{
-            mb: 1.5,
-            borderRadius: 2,
-            width: "100%",
-            maxWidth: "100%",
-          }}
-        >
-          <CardContent
-            sx={{
-              p: {
-                xs: 1,
-                sm: 1.25,
-              },
-              "&:last-child": {
-                pb: {
-                  xs: 1,
-                  sm: 1.25,
-                },
-              },
-            }}
-          >
-            <Stack
-              direction="row"
-              spacing={0.75}
-              useFlexGap
-              flexWrap="wrap"
-            >
-              <RoleSummary
-                label="Super Admin"
-                value={stats.super_admin}
-              />
+        {/* <Card
+  elevation={0}
+  sx={{
+    mb: 1.5,
+    borderRadius: 2,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+  }}
+>
+  <CardContent
+    sx={{
+      p: { xs: 1, sm: 1.25 },
+      "&:last-child": {
+        pb: { xs: 1, sm: 1.25 },
+      },
+    }}
+  >
+    <Stack
+      direction="row"
+      alignItems="center"
+      spacing={1}
+      sx={{ mb: 0.8 }}
+    >
+      <Box
+        sx={{
+          width: 4,
+          height: 18,
+          borderRadius: 5,
+          background: "#2563eb",
+        }}
+      />
 
-              <RoleSummary
-                label="Org Admin"
-                value={stats.org_admin}
-              />
+      <Typography
+        sx={{
+          fontSize: {
+            xs: "0.78rem",
+            sm: "0.85rem",
+          },
+          fontWeight: 800,
+          color: "#0f172a",
+        }}
+      >
+        Users by Role
+      </Typography>
+    </Stack>
 
-              <RoleSummary
-                label="Centre Admin"
-                value={stats.centre_admin}
-              />
+    <Stack
+      direction="row"
+      spacing={0.7}
+      useFlexGap
+      flexWrap="wrap"
+    >
+      <RoleSummary
+        label="Super Admin"
+        value={stats.super_admin}
+      />
 
-              <RoleSummary
-                label="Teacher"
-                value={stats.teacher}
-              />
+      <RoleSummary
+        label="Org Admin"
+        value={stats.org_admin}
+      />
 
-              <RoleSummary
-                label="Student"
-                value={stats.student}
-              />
-            </Stack>
-          </CardContent>
-        </Card>
+      <RoleSummary
+        label="Centre Admin"
+        value={stats.centre_admin}
+      />
+
+      <RoleSummary
+        label="Teacher"
+        value={stats.teacher}
+      />
+
+      <RoleSummary
+        label="Student"
+        value={stats.student}
+      />
+    </Stack>
+  </CardContent>
+</Card> */}
 
         {/* ====================================================
             FILTERS
@@ -1205,8 +1230,8 @@ export default function UsersPage() {
 
         <Card
           sx={{
-            mb: 1.5,
-            borderRadius: 2,
+            my: 1.5,
+            borderRadius: 1,
             width: "100%",
             maxWidth: "100%",
           }}
@@ -1215,12 +1240,12 @@ export default function UsersPage() {
             sx={{
               p: {
                 xs: 1,
-                sm: 1.25,
+                sm: 0,
               },
               "&:last-child": {
                 pb: {
                   xs: 1,
-                  sm: 1.25,
+                  sm: 1,
                 },
               },
             }}
@@ -1237,9 +1262,7 @@ export default function UsersPage() {
                 <TextField
                   fullWidth
                   value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search name, email or mobile..."
                   size="small"
                   InputProps={{
@@ -1253,31 +1276,21 @@ export default function UsersPage() {
               </Grid>
 
               <Grid item xs={12} sm={6} md={3}>
-                <FormControl
-                  fullWidth
-                  size="small"
-                >
+                <FormControl fullWidth size="small">
                   <InputLabel>Role</InputLabel>
 
                   <Select
                     value={roleFilter}
                     label="Role"
                     onChange={(e) => {
-                      setRoleFilter(
-                        e.target.value
-                      );
+                      setRoleFilter(e.target.value);
                       setPage(0);
                     }}
                   >
-                    <MenuItem value="">
-                      All Roles
-                    </MenuItem>
+                    <MenuItem value="">All Roles</MenuItem>
 
                     {ROLES.map((role) => (
-                      <MenuItem
-                        key={role.value}
-                        value={role.value}
-                      >
+                      <MenuItem key={role.value} value={role.value}>
                         {role.label}
                       </MenuItem>
                     ))}
@@ -1286,33 +1299,22 @@ export default function UsersPage() {
               </Grid>
 
               <Grid item xs={12} sm={6} md={3}>
-                <FormControl
-                  fullWidth
-                  size="small"
-                >
+                <FormControl fullWidth size="small">
                   <InputLabel>Status</InputLabel>
 
                   <Select
                     value={statusFilter}
                     label="Status"
                     onChange={(e) => {
-                      setStatusFilter(
-                        e.target.value
-                      );
+                      setStatusFilter(e.target.value);
                       setPage(0);
                     }}
                   >
-                    <MenuItem value="">
-                      All Status
-                    </MenuItem>
+                    <MenuItem value="">All Status</MenuItem>
 
-                    <MenuItem value="active">
-                      Active
-                    </MenuItem>
+                    <MenuItem value="active">Active</MenuItem>
 
-                    <MenuItem value="inactive">
-                      Inactive
-                    </MenuItem>
+                    <MenuItem value="inactive">Inactive</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -1354,11 +1356,13 @@ export default function UsersPage() {
 
         <Card
           sx={{
-            borderRadius: 2,
+            borderRadius: 1,
             overflow: "hidden",
             width: "100%",
             maxWidth: "100%",
             minWidth: 0,
+            border: "1px solid #E6EAF0",
+            boxShadow: "0 2px 8px rgba(16, 24, 40, 0.04)",
           }}
         >
           <TableContainer
@@ -1367,57 +1371,146 @@ export default function UsersPage() {
               maxWidth: "100%",
               overflowX: "auto",
               overflowY: "hidden",
+              position: "relative",
 
               "&::-webkit-scrollbar": {
                 height: 6,
               },
 
+              "&::-webkit-scrollbar-track": {
+                backgroundColor: "#F1F3F6",
+              },
+
               "&::-webkit-scrollbar-thumb": {
                 borderRadius: 10,
-                backgroundColor: "divider",
+                backgroundColor: "#B8C0CC",
+              },
+
+              "&::-webkit-scrollbar-thumb:hover": {
+                backgroundColor: "#98A2B3",
               },
             }}
           >
             <Table
               size="small"
+              stickyHeader
               sx={{
                 minWidth: {
                   xs: 1050,
                   md: 1120,
                 },
 
+                tableLayout: "auto",
+
+                // =========================
+                // ALL TABLE CELLS
+                // =========================
                 "& .MuiTableCell-root": {
-                  py: 0.7,
+                  py: 0.6,
                   px: 1.25,
                   whiteSpace: "nowrap",
+                  fontSize: "0.75rem",
+                  borderBottom: "1px solid #EEF1F5",
                 },
 
-                "& .MuiTableHead-root .MuiTableCell-root":
+                // =========================
+                // TABLE HEADER
+                // =========================
+                "& .MuiTableHead-root .MuiTableCell-root": {
+                  py: 0.85,
+                  px: 1.25,
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  color: "#FFFFFF",
+                  backgroundColor: "#1d2ba5",
+                  borderBottom: "none",
+                  height: 42,
+                },
+
+                // =========================
+                // TABLE BODY ROW
+                // =========================
+                "& .MuiTableBody-root .MuiTableRow-root": {
+                  height: 48,
+                },
+
+                "& .MuiTableBody-root .MuiTableRow-root:hover": {
+                  backgroundColor: "#F5F9FF",
+                },
+
+                "& .MuiTableBody-root .MuiTableRow-root:hover .MuiTableCell-root":
                   {
-                    py: 0.9,
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
+                    backgroundColor: "#F5F9FF",
+                  },
+                // =========================
+                // STICKY ACTION HEADER
+                // =========================
+                "& .sticky-action-header": {
+                  position: "sticky",
+                  right: 0,
+                  zIndex: 5,
+
+                  width: 105,
+                  minWidth: 105,
+                  maxWidth: 105,
+
+                  backgroundColor: "#20349a !important",
+                  color: "#FFFFFF !important",
+                  borderLeft: "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "-4px 0 8px rgba(0,0,0,0.08)",
+
+                  px: 0.5,
+                },
+
+                // =========================
+                // STICKY ACTION BODY
+                // =========================
+                "& .sticky-action-cell": {
+                  position: "sticky",
+                  right: 0,
+                  zIndex: 3,
+
+                  width: 105,
+                  minWidth: 105,
+                  maxWidth: 105,
+
+                  backgroundColor: "#FFFFFF",
+                  borderLeft: "1px solid #E5E7EB",
+                  boxShadow: "-4px 0 8px rgba(0,0,0,0.04)",
+
+                  px: 0.5,
+                },
+
+                "& .MuiTableBody-root .MuiTableRow-root:hover .sticky-action-cell":
+                  {
+                    backgroundColor: "#F5F9FF",
+                  },
+                "& .MuiTableBody-root .MuiTableRow-root:hover .sticky-action-cell":
+                  {
+                    backgroundColor: "#F5F9FF",
                   },
               }}
             >
+              {/* ========================================================= */}
+              {/* TABLE HEAD */}
+              {/* ========================================================= */}
+
               <TableHead>
-                <TableRow
-                  sx={{
-                    backgroundColor:
-                      "action.hover",
-                  }}
-                >
+                <TableRow>
                   <TableCell
+                          align="center"
                     sx={{
                       minWidth: 220,
+                   
                     }}
                   >
                     <b>User</b>
                   </TableCell>
 
                   <TableCell
+                             align="center"
                     sx={{
-                      minWidth: 135,
+                      minWidth: 105,
                     }}
                   >
                     <b>Role</b>
@@ -1463,10 +1556,17 @@ export default function UsersPage() {
                     <b>Status</b>
                   </TableCell>
 
+                  {/* STICKY ACTION HEADER */}
                   <TableCell
-                    align="right"
+                    align="center"
+                    className="sticky-action-header"
                     sx={{
-                      minWidth: 170,
+                      width: 125,
+                      minWidth: 125,
+                      maxWidth: 125,
+                      px: 0.5,
+                      py: 0.85,
+                      whiteSpace: "nowrap",
                     }}
                   >
                     <b>Actions</b>
@@ -1474,21 +1574,23 @@ export default function UsersPage() {
                 </TableRow>
               </TableHead>
 
+              {/* ========================================================= */}
+              {/* TABLE BODY */}
+              {/* ========================================================= */}
+
               <TableBody>
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={8}>
                       <Box
                         sx={{
-                          minHeight: 220,
+                          minHeight: 180,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                         }}
                       >
-                        <CircularProgress
-                          size={30}
-                        />
+                        <CircularProgress size={28} />
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -1497,15 +1599,14 @@ export default function UsersPage() {
                     <TableCell colSpan={8}>
                       <Box
                         sx={{
-                          py: 6,
+                          py: 5,
                           textAlign: "center",
                         }}
                       >
                         <People
                           sx={{
-                            fontSize: 45,
-                            color:
-                              "text.disabled",
+                            fontSize: 42,
+                            color: "text.disabled",
                             mb: 1,
                           }}
                         />
@@ -1514,7 +1615,8 @@ export default function UsersPage() {
                           variant="h6"
                           color="text.secondary"
                           sx={{
-                            fontSize: "1rem",
+                            fontSize: "0.95rem",
+                            fontWeight: 700,
                           }}
                         >
                           No users found
@@ -1524,30 +1626,26 @@ export default function UsersPage() {
                           variant="body2"
                           color="text.secondary"
                           sx={{
-                            fontSize: "0.75rem",
+                            fontSize: "0.72rem",
+                            mt: 0.3,
                           }}
                         >
-                          Try changing your
-                          filters or create a new
-                          user.
+                          Try changing your filters or create a new user.
                         </Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
                 ) : (
                   visibleUsers.map((user) => {
-                    const userId =
-                      user._id || user.id;
+                    const userId = user._id || user.id;
 
-                    const batchesList =
-                      user.batches || [];
+                    const batchesList = user.batches || [];
 
                     return (
-                      <TableRow
-                        key={userId}
-                        hover
-                      >
+                      <TableRow key={userId} hover>
+                        {/* ================================================= */}
                         {/* USER */}
+                        {/* ================================================= */}
 
                         <TableCell>
                           <Stack
@@ -1560,16 +1658,16 @@ export default function UsersPage() {
                           >
                             <Avatar
                               sx={{
-                                width: 34,
-                                height: 34,
-                                fontSize: 12,
+                                width: 32,
+                                height: 32,
+                                fontSize: 11,
                                 fontWeight: 700,
                                 flexShrink: 0,
+                                backgroundColor: "#E3F2FD",
+                                color: "#1565C0",
                               }}
                             >
-                              {getInitials(
-                                user.name
-                              )}
+                              {getInitials(user.name)}
                             </Avatar>
 
                             <Box
@@ -1582,8 +1680,8 @@ export default function UsersPage() {
                                 variant="body2"
                                 noWrap
                                 sx={{
-                                  fontSize:
-                                    "0.78rem",
+                                  fontSize: "0.77rem",
+                                  lineHeight: 1.25,
                                 }}
                               >
                                 {user.name}
@@ -1595,8 +1693,9 @@ export default function UsersPage() {
                                 noWrap
                                 display="block"
                                 sx={{
-                                  fontSize:
-                                    "0.68rem",
+                                  fontSize: "0.66rem",
+                                  lineHeight: 1.2,
+                                  mt: 0.2,
                                 }}
                               >
                                 {user.email}
@@ -1609,8 +1708,9 @@ export default function UsersPage() {
                                   color="text.secondary"
                                   noWrap
                                   sx={{
-                                    fontSize:
-                                      "0.66rem",
+                                    fontSize: "0.64rem",
+                                    lineHeight: 1.2,
+                                    mt: 0.15,
                                   }}
                                 >
                                   {user.mobile}
@@ -1620,79 +1720,85 @@ export default function UsersPage() {
                           </Stack>
                         </TableCell>
 
+                        {/* ================================================= */}
                         {/* ROLE */}
+                        {/* ================================================= */}
 
                         <TableCell>
                           <Chip
                             size="small"
-                            label={getRoleLabel(
-                              user.role
-                            )}
-                            color={getRoleColor(
-                              user.role
-                            )}
+                            label={getRoleLabel(user.role)}
+                            color={getRoleColor(user.role)}
                             variant="outlined"
                             sx={{
-                              height: 24,
-                              fontSize:
-                                "0.67rem",
+                              height: 23,
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                              borderRadius: 1,
+                              "& .MuiChip-label": {
+                                px: 1,
+                              },
                             }}
                           />
                         </TableCell>
 
+                        {/* ================================================= */}
                         {/* ORGANISATION */}
+                        {/* ================================================= */}
 
                         <TableCell>
                           <Typography
                             variant="body2"
                             noWrap
                             sx={{
-                              fontSize:
-                                "0.75rem",
+                              fontSize: "0.73rem",
+                              color: "#344054",
                             }}
                           >
-                            {user.organisation
-                              ?.name || "—"}
+                            {user.organisation?.name || "—"}
                           </Typography>
                         </TableCell>
 
+                        {/* ================================================= */}
                         {/* CENTRE */}
+                        {/* ================================================= */}
 
                         <TableCell>
                           <Typography
                             variant="body2"
                             noWrap
                             sx={{
-                              fontSize:
-                                "0.75rem",
+                              fontSize: "0.73rem",
+                              color: "#344054",
                             }}
                           >
-                            {user.centre?.name ||
-                              "—"}
+                            {user.centre?.name || "—"}
                           </Typography>
                         </TableCell>
 
+                        {/* ================================================= */}
                         {/* COURSE */}
+                        {/* ================================================= */}
 
                         <TableCell>
                           <Typography
                             variant="body2"
                             noWrap
                             sx={{
-                              fontSize:
-                                "0.75rem",
+                              fontSize: "0.73rem",
+                              color: "#344054",
                             }}
                           >
-                            {user.course?.name ||
-                              "—"}
+                            {user.course?.name || "—"}
                           </Typography>
                         </TableCell>
 
+                        {/* ================================================= */}
                         {/* BATCHES */}
+                        {/* ================================================= */}
 
                         <TableCell>
-                          {batchesList.length >
-                          0 ? (
+                          {batchesList.length > 0 ? (
                             <Stack
                               direction="row"
                               spacing={0.4}
@@ -1702,158 +1808,160 @@ export default function UsersPage() {
                                 maxWidth: 170,
                               }}
                             >
-                              {batchesList
-                                .slice(0, 2)
-                                .map(
-                                  (
-                                    batch,
-                                    index
-                                  ) => (
-                                    <Chip
-                                      key={
-                                        typeof batch ===
-                                        "string"
-                                          ? batch
-                                          : batch?._id ||
-                                            index
-                                      }
-                                      size="small"
-                                      label={
-                                        typeof batch ===
-                                        "string"
-                                          ? batch
-                                          : batch?.name ||
-                                            "Batch"
-                                      }
-                                      sx={{
-                                        height: 23,
-                                        fontSize:
-                                          "0.65rem",
-                                      }}
-                                    />
-                                  )
-                                )}
+                              {batchesList.slice(0, 2).map((batch, index) => (
+                                <Chip
+                                  key={
+                                    typeof batch === "string"
+                                      ? batch
+                                      : batch?._id || index
+                                  }
+                                  size="small"
+                                  label={
+                                    typeof batch === "string"
+                                      ? batch
+                                      : batch?.name || "Batch"
+                                  }
+                                  sx={{
+                                    height: 22,
+                                    fontSize: "0.63rem",
+                                    borderRadius: 1,
+                                    backgroundColor: "#F2F4F7",
+                                    color: "#344054",
+                                    "& .MuiChip-label": {
+                                      px: 0.8,
+                                    },
+                                  }}
+                                />
+                              ))}
 
-                              {batchesList.length >
-                                2 && (
+                              {batchesList.length > 2 && (
                                 <Chip
                                   size="small"
                                   variant="outlined"
-                                  label={`+${
-                                    batchesList.length -
-                                    2
-                                  }`}
+                                  label={`+${batchesList.length - 2}`}
                                   sx={{
-                                    height: 23,
-                                    fontSize:
-                                      "0.65rem",
+                                    height: 22,
+                                    fontSize: "0.63rem",
+                                    borderRadius: 1,
+                                    "& .MuiChip-label": {
+                                      px: 0.8,
+                                    },
                                   }}
                                 />
                               )}
                             </Stack>
                           ) : (
-                            "—"
+                            <Typography
+                              component="span"
+                              sx={{
+                                color: "#98A2B3",
+                                fontSize: "0.75rem",
+                              }}
+                            >
+                              —
+                            </Typography>
                           )}
                         </TableCell>
 
+                        {/* ================================================= */}
                         {/* STATUS */}
+                        {/* ================================================= */}
 
                         <TableCell>
                           <Chip
                             size="small"
-                            label={
-                              user.isActive
-                                ? "Active"
-                                : "Inactive"
-                            }
-                            color={
-                              user.isActive
-                                ? "success"
-                                : "default"
-                            }
-                            icon={
-                              user.isActive ? (
-                                <CheckCircle />
-                              ) : (
-                                <Block />
-                              )
-                            }
+                            label={user.isActive ? "Active" : "Inactive"}
+                            color={user.isActive ? "success" : "default"}
+                            icon={user.isActive ? <CheckCircle /> : <Block />}
                             sx={{
-                              height: 24,
-                              fontSize:
-                                "0.67rem",
+                              height: 23,
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                              borderRadius: 1,
                               "& .MuiChip-icon": {
-                                fontSize: 14,
+                                fontSize: 13,
+                              },
+                              "& .MuiChip-label": {
+                                px: 0.8,
                               },
                             }}
                           />
                         </TableCell>
 
-                        {/* ACTIONS */}
+                        {/* ================================================= */}
+                        {/* STICKY ACTIONS */}
+                        {/* ================================================= */}
 
-                        <TableCell align="right">
+                        <TableCell align="right" className="sticky-action-cell">
                           <Stack
                             direction="row"
-                            spacing={0.25}
+                            spacing={0.35}
                             justifyContent="flex-end"
+                            alignItems="center"
                             sx={{
-                              minWidth: 170,
+                              minWidth: 100,
                             }}
                           >
-                            <Tooltip title="Edit User">
+                            {/* EDIT */}
+                            <Tooltip title="Edit User" arrow>
                               <IconButton
                                 size="small"
-                                onClick={() =>
-                                  handleEdit(user)
-                                }
+                                onClick={() => handleEdit(user)}
                                 sx={{
-                                  width: 30,
+                                  width: 20,
                                   height: 30,
+                                  borderRadius: 1,
+                                  color: "#1565C0",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(21,101,192,0.08)",
+                                  },
                                 }}
                               >
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
 
-                            <Tooltip title="Reset Password">
+                            {/* RESET PASSWORD */}
+                            <Tooltip title="Reset Password" arrow>
                               <IconButton
                                 size="small"
-                                onClick={() =>
-                                  openPasswordDialog(
-                                    user
-                                  )
-                                }
+                                onClick={() => openPasswordDialog(user)}
                                 sx={{
-                                  width: 30,
+                                  width: 22,
                                   height: 30,
+                                  borderRadius: 1,
+                                  color: "#7B1FA2",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(123,31,162,0.08)",
+                                  },
                                 }}
                               >
                                 <LockReset fontSize="small" />
                               </IconButton>
                             </Tooltip>
 
+                            {/* ACTIVATE / DEACTIVATE */}
                             <Tooltip
                               title={
                                 user.isActive
                                   ? "Deactivate User"
                                   : "Activate User"
                               }
+                              arrow
                             >
                               <IconButton
                                 size="small"
-                                color={
-                                  user.isActive
-                                    ? "warning"
-                                    : "success"
-                                }
-                                onClick={() =>
-                                  handleToggleStatus(
-                                    user
-                                  )
-                                }
+                                color={user.isActive ? "warning" : "success"}
+                                onClick={() => handleToggleStatus(user)}
                                 sx={{
-                                  width: 30,
+                                  width: 20,
                                   height: 30,
+                                  borderRadius: 1,
+                                  "&:hover": {
+                                    backgroundColor: user.isActive
+                                      ? "rgba(237,108,2,0.08)"
+                                      : "rgba(46,125,50,0.08)",
+                                  },
                                 }}
                               >
                                 {user.isActive ? (
@@ -1864,19 +1972,20 @@ export default function UsersPage() {
                               </IconButton>
                             </Tooltip>
 
-                            <Tooltip title="Deactivate">
+                            {/* DELETE / DEACTIVATE */}
+                            <Tooltip title="Deactivate" arrow>
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() =>
-                                  handleDelete(user)
-                                }
-                                disabled={
-                                  !user.isActive
-                                }
+                                onClick={() => handleDelete(user)}
+                                disabled={!user.isActive}
                                 sx={{
-                                  width: 30,
+                                  width: 22,
                                   height: 30,
+                                  borderRadius: 1,
+                                  "&:hover": {
+                                    backgroundColor: "rgba(211,47,47,0.08)",
+                                  },
                                 }}
                               >
                                 <DeleteOutline fontSize="small" />
@@ -1892,53 +2001,55 @@ export default function UsersPage() {
             </Table>
           </TableContainer>
 
+          {/* ============================================================= */}
+          {/* PAGINATION */}
+          {/* ============================================================= */}
+
           <Divider />
 
           <Box
             sx={{
               width: "100%",
               overflowX: "auto",
+              backgroundColor: "#FFFFFF",
             }}
           >
             <TablePagination
               component="div"
               count={totalUsers}
               page={page}
-              onPageChange={(_, newPage) =>
-                setPage(newPage)
-              }
+              onPageChange={(_, newPage) => setPage(newPage)}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(event) => {
-                setRowsPerPage(
-                  parseInt(
-                    event.target.value,
-                    10
-                  )
-                );
+                setRowsPerPage(parseInt(event.target.value, 10));
                 setPage(0);
               }}
-              rowsPerPageOptions={[
-                10,
-                25,
-                50,
-                100,
-              ]}
+              rowsPerPageOptions={[10, 25, 50, 100]}
               sx={{
                 minWidth: 350,
 
-                "& .MuiTablePagination-toolbar":
-                  {
-                    minHeight: 48,
-                    px: {
-                      xs: 1,
-                      sm: 2,
-                    },
+                "& .MuiTablePagination-toolbar": {
+                  minHeight: 46,
+                  px: {
+                    xs: 1,
+                    sm: 2,
                   },
+                },
 
                 "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
                   {
-                    fontSize: "0.72rem",
+                    fontSize: "0.7rem",
+                    color: "#667085",
                   },
+
+                "& .MuiTablePagination-select": {
+                  fontSize: "0.72rem",
+                },
+
+                "& .MuiTablePagination-actions button": {
+                  width: 30,
+                  height: 30,
+                },
               }}
             />
           </Box>
@@ -1987,9 +2098,7 @@ export default function UsersPage() {
               py: 1.5,
             }}
           >
-            {editingUser
-              ? "Edit User"
-              : "Create New User"}
+            {editingUser ? "Edit User" : "Create New User"}
           </DialogTitle>
 
           <DialogContent
@@ -2010,9 +2119,7 @@ export default function UsersPage() {
                   mb: 1.5,
                   py: 0.5,
                 }}
-                onClose={() =>
-                  setFormError("")
-                }
+                onClose={() => setFormError("")}
               >
                 {formError}
               </Alert>
@@ -2027,9 +2134,7 @@ export default function UsersPage() {
                   size="small"
                   label="Full Name"
                   value={form.name}
-                  onChange={handleFieldChange(
-                    "name"
-                  )}
+                  onChange={handleFieldChange("name")}
                   required
                 />
               </Grid>
@@ -2043,9 +2148,7 @@ export default function UsersPage() {
                   label="Email"
                   type="email"
                   value={form.email}
-                  onChange={handleFieldChange(
-                    "email"
-                  )}
+                  onChange={handleFieldChange("email")}
                   required
                 />
               </Grid>
@@ -2058,19 +2161,14 @@ export default function UsersPage() {
                   size="small"
                   label="Mobile"
                   value={form.mobile}
-                  onChange={handleFieldChange(
-                    "mobile"
-                  )}
+                  onChange={handleFieldChange("mobile")}
                 />
               </Grid>
 
               {/* ROLE */}
 
               <Grid item xs={12} md={6}>
-                <FormControl
-                  fullWidth
-                  size="small"
-                >
+                <FormControl fullWidth size="small">
                   <InputLabel>Role</InputLabel>
 
                   <Select
@@ -2079,17 +2177,13 @@ export default function UsersPage() {
                     onChange={handleRoleChange}
                   >
                     {ROLES.map((role) => (
-                      <MenuItem
-                        key={role.value}
-                        value={role.value}
-                      >
+                      <MenuItem key={role.value} value={role.value}>
                         <Box>
                           <Typography
                             variant="body2"
                             fontWeight={700}
                             sx={{
-                              fontSize:
-                                "0.78rem",
+                              fontSize: "0.78rem",
                             }}
                           >
                             {role.label}
@@ -2099,8 +2193,7 @@ export default function UsersPage() {
                             variant="caption"
                             color="text.secondary"
                             sx={{
-                              fontSize:
-                                "0.65rem",
+                              fontSize: "0.65rem",
                             }}
                           >
                             {role.description}
@@ -2122,9 +2215,7 @@ export default function UsersPage() {
                     label="Password"
                     type="password"
                     value={form.password}
-                    onChange={handleFieldChange(
-                      "password"
-                    )}
+                    onChange={handleFieldChange("password")}
                     required
                   />
                 </Grid>
@@ -2149,20 +2240,16 @@ export default function UsersPage() {
                         onChange={(event) =>
                           setForm((prev) => ({
                             ...prev,
-                            isActive:
-                              event.target
-                                .checked,
+                            isActive: event.target.checked,
                           }))
                         }
                       />
                     }
                     label="Active User"
                     sx={{
-                      "& .MuiFormControlLabel-label":
-                        {
-                          fontSize:
-                            "0.78rem",
-                        },
+                      "& .MuiFormControlLabel-label": {
+                        fontSize: "0.78rem",
+                      },
                     }}
                   />
                 </Box>
@@ -2181,8 +2268,7 @@ export default function UsersPage() {
                         fontWeight={700}
                         color="text.secondary"
                         sx={{
-                          fontSize:
-                            "0.65rem",
+                          fontSize: "0.65rem",
                         }}
                       >
                         ORGANISATION HIERARCHY
@@ -2193,99 +2279,50 @@ export default function UsersPage() {
                   {/* ORGANISATION */}
 
                   <Grid item xs={12} md={6}>
-                    <FormControl
-                      fullWidth
-                      size="small"
-                    >
-                      <InputLabel>
-                        Organisation
-                      </InputLabel>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Organisation</InputLabel>
 
                       <Select
-                        value={
-                          form.organisation
-                        }
+                        value={form.organisation}
                         label="Organisation"
-                        onChange={
-                          handleOrganisationChange
-                        }
-                        disabled={
-                          hierarchyLoading
-                        }
+                        onChange={handleOrganisationChange}
+                        disabled={hierarchyLoading}
                       >
-                        <MenuItem value="">
-                          Select Organisation
-                        </MenuItem>
+                        <MenuItem value="">Select Organisation</MenuItem>
 
-                        {organisations.map(
-                          (org) => (
-                            <MenuItem
-                              key={org._id}
-                              value={org._id}
-                            >
-                              {org.name}
-                              {org.code
-                                ? ` (${org.code})`
-                                : ""}
-                            </MenuItem>
-                          )
-                        )}
+                        {organisations.map((org) => (
+                          <MenuItem key={org._id} value={org._id}>
+                            {org.name}
+                            {org.code ? ` (${org.code})` : ""}
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Grid>
 
                   {/* CENTRE */}
 
-                  {[
-                    "centre_admin",
-                    "teacher",
-                    "student",
-                  ].includes(form.role) && (
-                    <Grid
-                      item
-                      xs={12}
-                      md={6}
-                    >
-                      <FormControl
-                        fullWidth
-                        size="small"
-                      >
-                        <InputLabel>
-                          Centre
-                        </InputLabel>
+                  {["centre_admin", "teacher", "student"].includes(
+                    form.role,
+                  ) && (
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Centre</InputLabel>
 
                         <Select
                           value={form.centre}
                           label="Centre"
-                          onChange={
-                            handleCentreChange
-                          }
-                          disabled={
-                            !form.organisation ||
-                            hierarchyLoading
-                          }
+                          onChange={handleCentreChange}
+                          disabled={!form.organisation || hierarchyLoading}
                         >
-                          <MenuItem value="">
-                            Select Centre
-                          </MenuItem>
+                          <MenuItem value="">Select Centre</MenuItem>
 
-                          {centres.map(
-                            (centre) => (
-                              <MenuItem
-                                key={
-                                  centre._id
-                                }
-                                value={
-                                  centre._id
-                                }
-                              >
-                                {centre.name}
-                                {centre.code
-                                  ? ` (${centre.code})`
-                                  : ""}
-                              </MenuItem>
-                            )
-                          )}
+                          {centres.map((centre) => (
+                            <MenuItem key={centre._id} value={centre._id}>
+                              {centre.name}
+                              {centre.code ? ` (${centre.code})` : ""}
+                            </MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
                     </Grid>
@@ -2293,55 +2330,25 @@ export default function UsersPage() {
 
                   {/* COURSE */}
 
-                  {[
-                    "teacher",
-                    "student",
-                  ].includes(form.role) && (
-                    <Grid
-                      item
-                      xs={12}
-                      md={6}
-                    >
-                      <FormControl
-                        fullWidth
-                        size="small"
-                      >
-                        <InputLabel>
-                          Course
-                        </InputLabel>
+                  {["teacher", "student"].includes(form.role) && (
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Course</InputLabel>
 
                         <Select
                           value={form.course}
                           label="Course"
-                          onChange={
-                            handleCourseChange
-                          }
-                          disabled={
-                            !form.centre ||
-                            hierarchyLoading
-                          }
+                          onChange={handleCourseChange}
+                          disabled={!form.centre || hierarchyLoading}
                         >
-                          <MenuItem value="">
-                            Select Course
-                          </MenuItem>
+                          <MenuItem value="">Select Course</MenuItem>
 
-                          {courses.map(
-                            (course) => (
-                              <MenuItem
-                                key={
-                                  course._id
-                                }
-                                value={
-                                  course._id
-                                }
-                              >
-                                {course.name}
-                                {course.code
-                                  ? ` (${course.code})`
-                                  : ""}
-                              </MenuItem>
-                            )
-                          )}
+                          {courses.map((course) => (
+                            <MenuItem key={course._id} value={course._id}>
+                              {course.name}
+                              {course.code ? ` (${course.code})` : ""}
+                            </MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
                     </Grid>
@@ -2351,88 +2358,51 @@ export default function UsersPage() {
 
                   {form.role === "teacher" && (
                     <Grid item xs={12}>
-                      <FormControl
-                        fullWidth
-                        size="small"
-                      >
-                        <InputLabel>
-                          Assign Batches
-                        </InputLabel>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Assign Batches</InputLabel>
 
                         <Select
                           multiple
                           value={form.batches}
-                          onChange={
-                            handleBatchChange
-                          }
-                          input={
-                            <OutlinedInput
-                              label="Assign Batches"
-                            />
-                          }
-                          disabled={
-                            !form.course ||
-                            hierarchyLoading
-                          }
-                          renderValue={(
-                            selected
-                          ) => (
+                          onChange={handleBatchChange}
+                          input={<OutlinedInput label="Assign Batches" />}
+                          disabled={!form.course || hierarchyLoading}
+                          renderValue={(selected) => (
                             <Stack
                               direction="row"
                               spacing={0.4}
                               useFlexGap
                               flexWrap="wrap"
                               sx={{
-                                maxWidth:
-                                  "100%",
+                                maxWidth: "100%",
                               }}
                             >
-                              {selected.map(
-                                (id) => {
-                                  const batch =
-                                    batches.find(
-                                      (item) =>
-                                        item._id ===
-                                        id
-                                    );
+                              {selected.map((id) => {
+                                const batch = batches.find(
+                                  (item) => item._id === id,
+                                );
 
-                                  return (
-                                    <Chip
-                                      key={id}
-                                      size="small"
-                                      label={
-                                        batch?.name ||
-                                        id
-                                      }
-                                      sx={{
-                                        height: 23,
-                                        fontSize:
-                                          "0.65rem",
-                                      }}
-                                    />
-                                  );
-                                }
-                              )}
+                                return (
+                                  <Chip
+                                    key={id}
+                                    size="small"
+                                    label={batch?.name || id}
+                                    sx={{
+                                      height: 23,
+                                      fontSize: "0.65rem",
+                                    }}
+                                  />
+                                );
+                              })}
                             </Stack>
                           )}
                         >
-                          {batches.map(
-                            (batch) => (
-                              <MenuItem
-                                key={
-                                  batch._id
-                                }
-                                value={
-                                  batch._id
-                                }
-                              >
-                                {batch.name}
-                                {batch.code
-                                  ? ` (${batch.code})`
-                                  : ""}
-                              </MenuItem>
-                            )
-                          )}
+                          {batches.map((batch) => (
+                            <MenuItem key={batch._id} value={batch._id}>
+                              {batch.name}
+                              {batch.code ? ` (${batch.code})` : ""}
+                            </MenuItem>
+                          ))}
                         </Select>
 
                         <Typography
@@ -2441,12 +2411,10 @@ export default function UsersPage() {
                           sx={{
                             mt: 0.5,
                             ml: 1,
-                            fontSize:
-                              "0.65rem",
+                            fontSize: "0.65rem",
                           }}
                         >
-                          Teacher can be assigned
-                          to multiple batches.
+                          Teacher can be assigned to multiple batches.
                         </Typography>
                       </FormControl>
                     </Grid>
@@ -2456,109 +2424,50 @@ export default function UsersPage() {
 
                   {form.role === "student" && (
                     <>
-                      <Grid
-                        item
-                        xs={12}
-                        md={6}
-                      >
-                        <FormControl
-                          fullWidth
-                          size="small"
-                        >
-                          <InputLabel>
-                            Batch
-                          </InputLabel>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Batch</InputLabel>
 
                           <Select
-                            value={
-                              form.batches[0] ||
-                              ""
-                            }
+                            value={form.batches[0] || ""}
                             label="Batch"
-                            onChange={
-                              handleBatchChange
-                            }
-                            disabled={
-                              !form.course ||
-                              hierarchyLoading
-                            }
+                            onChange={handleBatchChange}
+                            disabled={!form.course || hierarchyLoading}
                           >
-                            <MenuItem value="">
-                              Select Batch
-                            </MenuItem>
+                            <MenuItem value="">Select Batch</MenuItem>
 
-                            {batches.map(
-                              (batch) => (
-                                <MenuItem
-                                  key={
-                                    batch._id
-                                  }
-                                  value={
-                                    batch._id
-                                  }
-                                >
-                                  {batch.name}
-                                  {batch.code
-                                    ? ` (${batch.code})`
-                                    : ""}
-                                </MenuItem>
-                              )
-                            )}
+                            {batches.map((batch) => (
+                              <MenuItem key={batch._id} value={batch._id}>
+                                {batch.name}
+                                {batch.code ? ` (${batch.code})` : ""}
+                              </MenuItem>
+                            ))}
                           </Select>
                         </FormControl>
                       </Grid>
 
                       {/* STUDENT PROFILE */}
 
-                      <Grid
-                        item
-                        xs={12}
-                        md={6}
-                      >
-                        <FormControl
-                          fullWidth
-                          size="small"
-                        >
-                          <InputLabel>
-                            Student Profile
-                          </InputLabel>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Student Profile</InputLabel>
 
                           <Select
-                            value={
-                              form.studentId
-                            }
+                            value={form.studentId}
                             label="Student Profile"
-                            onChange={handleFieldChange(
-                              "studentId"
-                            )}
-                            disabled={
-                              !form.batches[0] ||
-                              hierarchyLoading
-                            }
+                            onChange={handleFieldChange("studentId")}
+                            disabled={!form.batches[0] || hierarchyLoading}
                           >
-                            <MenuItem value="">
-                              Select Student
-                            </MenuItem>
+                            <MenuItem value="">Select Student</MenuItem>
 
-                            {students.map(
-                              (student) => (
-                                <MenuItem
-                                  key={
-                                    student._id
-                                  }
-                                  value={
-                                    student._id
-                                  }
-                                >
-                                  {student.rollNumber
-                                    ? `${student.rollNumber} - `
-                                    : ""}
-                                  {
-                                    student.name
-                                  }
-                                </MenuItem>
-                              )
-                            )}
+                            {students.map((student) => (
+                              <MenuItem key={student._id} value={student._id}>
+                                {student.rollNumber
+                                  ? `${student.rollNumber} - `
+                                  : ""}
+                                {student.name}
+                              </MenuItem>
+                            ))}
                           </Select>
                         </FormControl>
                       </Grid>
@@ -2578,10 +2487,8 @@ export default function UsersPage() {
                       fontSize: "0.75rem",
                     }}
                   >
-                    Super Admin has global access
-                    and does not need Organisation,
-                    Centre, Course or Batch
-                    assignment.
+                    Super Admin has global access and does not need
+                    Organisation, Centre, Course or Batch assignment.
                   </Alert>
                 </Grid>
               )}
@@ -2692,8 +2599,7 @@ export default function UsersPage() {
                 fontSize: "0.75rem",
               }}
             >
-              Reset password for{" "}
-              <b>{passwordUser?.name}</b>.
+              Reset password for <b>{passwordUser?.name}</b>.
             </Typography>
 
             {passwordError && (
@@ -2714,11 +2620,7 @@ export default function UsersPage() {
               label="New Password"
               type="password"
               value={newPassword}
-              onChange={(event) =>
-                setNewPassword(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setNewPassword(event.target.value)}
               autoFocus
             />
           </DialogContent>
@@ -2772,130 +2674,174 @@ export default function UsersPage() {
 // ============================================================
 // STAT CARD
 // ============================================================
+const StatCard = ({ title, value, icon, subtitle, accent = "primary" }) => {
+  const accentColors = {
+    primary: "#1565C0",
+    success: "#2E7D32",
+    info: "#0288D1",
+    warning: "#ED6C02",
+  };
 
-function StatCard({
-  title,
-  value,
-  icon,
-  subtitle,
-}) {
+  const color = accentColors[accent] || accentColors.primary;
+
   return (
     <Card
+      elevation={0}
       sx={{
-        height: "100%",
-        borderRadius: 2,
         width: "100%",
-        maxWidth: "100%",
+        height: 60,
+        borderRadius: 1.5,
+        border: "1px solid #E6EAF0",
+        backgroundColor: "#FFFFFF",
+        overflow: "hidden",
+        transition: "all 0.2s ease",
+        "&:hover": {
+          transform: "translateY(-1px)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+        },
       }}
     >
       <CardContent
         sx={{
-          p: {
-            xs: 1.25,
-            sm: 1.5,
-          },
-
-          "&:last-child": {
-            pb: {
-              xs: 1.25,
-              sm: 1.5,
-            },
-          },
+          height: "100%",
+          p: "8px 12px !important",
+          display: "flex",
+          alignItems: "center",
         }}
       >
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          gap={1}
+        {/* Icon */}
+        <Box
+          sx={{
+            width: 34,
+            height: 34,
+            minWidth: 34,
+            borderRadius: 1.2,
+            mr: 1.2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: `${color}12`,
+            color: color,
+            "& svg": {
+              fontSize: 19,
+            },
+          }}
         >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              fontWeight={600}
-              noWrap
-              sx={{
-                fontSize: {
-                  xs: "0.65rem",
-                  sm: "0.7rem",
-                },
-              }}
-            >
-              {title}
-            </Typography>
+          {icon}
+        </Box>
 
-            <Typography
-              variant="h4"
-              fontWeight={800}
-              sx={{
-                mt: 0.15,
-                fontSize: {
-                  xs: "1.35rem",
-                  sm: "1.5rem",
-                  md: "1.7rem",
-                },
-                lineHeight: 1.1,
-              }}
-            >
-              {value}
-            </Typography>
-
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{
-                display: {
-                  xs: "none",
-                  sm: "block",
-                },
-                fontSize: "0.65rem",
-              }}
-            >
-              {subtitle}
-            </Typography>
-          </Box>
-
-          <Avatar
+        {/* Title + Subtitle */}
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+          <Typography
             sx={{
-              width: {
-                xs: 32,
-                sm: 36,
-              },
-              height: {
-                xs: 32,
-                sm: 36,
-              },
-              flexShrink: 0,
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              color: "#344054",
+              lineHeight: 1.15,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
-            {icon}
-          </Avatar>
-        </Stack>
+            {title}
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 0.3,
+              fontSize: "0.64rem",
+              fontWeight: 500,
+              color: "#98A2B3",
+              lineHeight: 1.1,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {subtitle}
+          </Typography>
+        </Box>
+
+        {/* Count */}
+        <Typography
+          sx={{
+            ml: 1,
+            fontSize: "1.3rem",
+            fontWeight: 800,
+            color: "#101828",
+            lineHeight: 1,
+            flexShrink: 0,
+          }}
+        >
+          {value}
+        </Typography>
       </CardContent>
     </Card>
   );
-}
-
+};
 // ============================================================
 // ROLE SUMMARY
 // ============================================================
 
-function RoleSummary({
-  label,
-  value,
-}) {
+function RoleSummary({ label, value }) {
   return (
-    <Chip
-      size="small"
-      label={`${label}: ${value}`}
-      variant="outlined"
+    <Box
       sx={{
-        height: 28,
-        fontWeight: 600,
-        fontSize: "0.7rem",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.7,
+        px: 1,
+        py: 0.55,
+        borderRadius: 1.5,
+        backgroundColor: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        minHeight: 30,
         maxWidth: "100%",
       }}
-    />
+    >
+      <Typography
+        sx={{
+          fontSize: {
+            xs: "0.64rem",
+            sm: "0.68rem",
+          },
+          fontWeight: 600,
+          color: "#64748b",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Box
+        sx={{
+          minWidth: 22,
+          height: 21,
+          px: 0.6,
+          borderRadius: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#2563eb",
+          color: "#fff",
+        }}
+      >
+        <Typography
+          sx={{
+            fontSize: "0.65rem",
+            fontWeight: 800,
+            lineHeight: 1,
+          }}
+        >
+          {Number(value || 0)}
+        </Typography>
+      </Box>
+    </Box>
   );
 }

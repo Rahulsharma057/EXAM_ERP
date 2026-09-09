@@ -65,6 +65,7 @@ import {
   COLORS,
   PAGE_SIZE_OPTIONS,
   cardSx,
+  tableHeaderCellSx,
   inputFieldSx,
   outlinedButtonSx,
   containedButtonSx,
@@ -92,7 +93,7 @@ function StudentAvatar({ name }) {
         fontSize: '12px',
         fontWeight: 700,
         backgroundColor: COLORS.blueLight,
-        color: COLORS.blueDark,
+        color: COLORS.blue,
         border: `1px solid ${COLORS.blueBorder}`,
       }}
     >
@@ -159,12 +160,7 @@ export default function StudentsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  // Persistent — describes why the LIST couldn't load. Shown inline
-  // in the table with a retry action, not as a page-level banner.
   const [listError, setListError] = useState('');
-
-  // Transient — feedback for an ACTION the user just took (create,
-  // update, delete, import). Auto-dismisses, doesn't shift layout.
   const [toast, setToast] = useState({ open: false, severity: 'success', message: '' });
 
   const hasLoadedOnce = useRef(false);
@@ -405,16 +401,34 @@ export default function StudentsPage() {
               mb: 2.5,
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography
-                sx={{ fontSize: { xs: 22, sm: 25 }, lineHeight: 1.2, fontWeight: 700, color: COLORS.text }}
+            <Box sx={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '11px',
+                  flexShrink: 0,
+                  background: `linear-gradient(135deg, ${COLORS.accent} 0%, ${COLORS.blueDark} 100%)`,
+                  display: { xs: 'none', sm: 'flex' },
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(19, 41, 75, 0.22)',
+                }}
               >
-                Students
-              </Typography>
+                <PeopleAltIcon sx={{ fontSize: 22, color: COLORS.white }} />
+              </Box>
 
-              <Typography sx={{ mt: 0.5, color: COLORS.secondaryText, fontSize: '13.5px', lineHeight: 1.5 }}>
-                Manage and view students across your organisation hierarchy.
-              </Typography>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  sx={{ fontSize: { xs: 22, sm: 25 }, lineHeight: 1.2, fontWeight: 700, color: COLORS.text }}
+                >
+                  Students
+                </Typography>
+
+                <Typography sx={{ mt: 0.5, color: COLORS.secondaryText, fontSize: '13.5px', lineHeight: 1.5 }}>
+                  Manage and view students across your organisation hierarchy.
+                </Typography>
+              </Box>
             </Box>
 
             <Stack direction="row" spacing={1} alignItems="center">
@@ -426,12 +440,12 @@ export default function StudentsPage() {
                   sx={{
                     height: 32,
                     borderRadius: '8px',
-                    backgroundColor: COLORS.blueLight,
-                    border: `1px solid ${COLORS.blueBorder}`,
-                    color: COLORS.blueDark,
+                    backgroundColor: COLORS.accentLight,
+                    border: `1px solid ${COLORS.accentBorder}`,
+                    color: COLORS.accentDark,
                     fontSize: '12.5px',
                     fontWeight: 600,
-                    '& .MuiChip-icon': { color: COLORS.blue },
+                    '& .MuiChip-icon': { color: COLORS.accent },
                   }}
                 />
               )}
@@ -442,7 +456,7 @@ export default function StudentsPage() {
                     variant="outlined"
                     startIcon={
                       loading || refreshing ? (
-                        <CircularProgress size={16} sx={{ color: COLORS.blue }} />
+                        <CircularProgress size={16} sx={{ color: COLORS.accent }} />
                       ) : (
                         <RefreshIcon sx={{ fontSize: 19 }} />
                       )
@@ -484,9 +498,9 @@ export default function StudentsPage() {
                   backgroundColor: COLORS.white,
                   '& fieldset': { borderColor: COLORS.border },
                   '&:hover fieldset': { borderColor: COLORS.blueBorder },
-                  '&.Mui-focused fieldset': { borderColor: COLORS.blue, borderWidth: '1.5px' },
+                  '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: '1.5px' },
                 },
-                '& .MuiInputLabel-root.Mui-focused': { color: COLORS.blue },
+                '& .MuiInputLabel-root.Mui-focused': { color: COLORS.accent },
                 '& .MuiSelect-select': {
                   minWidth: 0,
                   overflow: 'hidden',
@@ -501,7 +515,7 @@ export default function StudentsPage() {
             <Divider sx={{ my: 2, borderColor: COLORS.border }} />
 
             <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, md: 6, lg: 7 }}>
+              <Grid item xs={12} md={6} lg={7}>
                 <TextField
                   fullWidth
                   size="small"
@@ -532,7 +546,7 @@ export default function StudentsPage() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 6, lg: 5 }}>
+              <Grid item xs={12} md={6} lg={5}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: '100%', height: '100%' }}>
                   <Tooltip title={!filters?.batch ? 'Select a batch first' : ''}>
                     <span style={{ flex: 1, display: 'flex' }}>
@@ -584,7 +598,7 @@ export default function StudentsPage() {
           <TableContainer
             component={Paper}
             elevation={0}
-            sx={{ ...cardSx, width: '100%', maxWidth: '100%', minWidth: 0, position: 'relative' }}
+            sx={{ ...cardSx, width: '100%', maxWidth: '100%', minWidth: 0, position: 'relative', overflow: 'hidden' }}
           >
             {refreshing && (
               <LinearProgress
@@ -597,7 +611,7 @@ export default function StudentsPage() {
                   height: 2,
                   zIndex: 2,
                   backgroundColor: 'transparent',
-                  '& .MuiLinearProgress-bar': { backgroundColor: COLORS.blue },
+                  '& .MuiLinearProgress-bar': { backgroundColor: COLORS.accent },
                 }}
               />
             )}
@@ -618,38 +632,12 @@ export default function StudentsPage() {
                 <TableHead>
                   <TableRow>
                     {['Roll Number', 'Student Name', 'Mobile', 'Course', 'Batch'].map((heading) => (
-                      <TableCell
-                        key={heading}
-                        scope="col"
-                        sx={{
-                          backgroundColor: COLORS.blueLight,
-                          color: COLORS.blueDark,
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          whiteSpace: 'nowrap',
-                          py: 1.5,
-                          px: 2,
-                          borderBottom: `1px solid ${COLORS.blueBorder}`,
-                        }}
-                      >
+                      <TableCell key={heading} scope="col" sx={tableHeaderCellSx}>
                         {heading}
                       </TableCell>
                     ))}
 
-                    <TableCell
-                      scope="col"
-                      align="right"
-                      sx={{
-                        backgroundColor: COLORS.blueLight,
-                        color: COLORS.blueDark,
-                        fontWeight: 700,
-                        fontSize: '12px',
-                        whiteSpace: 'nowrap',
-                        py: 1.5,
-                        px: 2,
-                        borderBottom: `1px solid ${COLORS.blueBorder}`,
-                      }}
-                    >
+                    <TableCell scope="col" align="center" sx={tableHeaderCellSx}>
                       Actions
                     </TableCell>
                   </TableRow>
@@ -757,7 +745,7 @@ export default function StudentsPage() {
                         <TableCell
                           sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${COLORS.border}`, whiteSpace: 'nowrap' }}
                         >
-                          <Typography sx={{ fontSize: '13px', fontWeight: 700, color: COLORS.blueDark }}>
+                          <Typography sx={{ fontSize: '13px', fontWeight: 700, color: COLORS.accent }}>
                             {student.rollNumber || '-'}
                           </Typography>
                         </TableCell>
@@ -855,7 +843,7 @@ export default function StudentsPage() {
                                   aria-label={`Edit ${student.name}`}
                                   sx={iconButtonSx}
                                 >
-                                  <EditOutlinedIcon sx={{ fontSize: 18, color: COLORS.blue }} />
+                                  <EditOutlinedIcon sx={{ fontSize: 18, color: COLORS.accent }} />
                                 </IconButton>
                               </Tooltip>
 
@@ -937,7 +925,7 @@ export default function StudentsPage() {
                           backgroundColor: COLORS.white,
                           '& .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.border },
                           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.blueBorder },
-                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.blue },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.accent },
                         }}
                       >
                         {PAGE_SIZE_OPTIONS.map((size) => (
@@ -970,9 +958,9 @@ export default function StudentsPage() {
                           color: COLORS.secondaryText,
                           margin: '0 2px',
                         },
-                        '& .MuiPaginationItem-root:hover': { backgroundColor: COLORS.blueLight, color: COLORS.blue },
-                        '& .MuiPaginationItem-root.Mui-selected': { backgroundColor: COLORS.blue, color: COLORS.white },
-                        '& .MuiPaginationItem-root.Mui-selected:hover': { backgroundColor: COLORS.blueDark },
+                        '& .MuiPaginationItem-root:hover': { backgroundColor: COLORS.accentLight, color: COLORS.accent },
+                        '& .MuiPaginationItem-root.Mui-selected': { backgroundColor: COLORS.accent, color: COLORS.white },
+                        '& .MuiPaginationItem-root.Mui-selected:hover': { backgroundColor: COLORS.accentDark },
                       }}
                     />
                   )}
@@ -1002,7 +990,7 @@ export default function StudentsPage() {
           View details
         </MenuItem>
         <MenuItem onClick={() => openEditDialog(rowMenu.student?._id)} sx={{ fontSize: '13px', gap: 1.25 }}>
-          <EditOutlinedIcon sx={{ fontSize: 18, color: COLORS.blue }} />
+          <EditOutlinedIcon sx={{ fontSize: 18, color: COLORS.accent }} />
           Edit student
         </MenuItem>
         <MenuItem onClick={() => openDeleteDialog(rowMenu.student)} sx={{ fontSize: '13px', gap: 1.25, color: COLORS.red }}>

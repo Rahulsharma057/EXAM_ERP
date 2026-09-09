@@ -19,9 +19,13 @@ import {
   Divider,
   Fade,
   Chip,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 import { api } from "../../services/api";
 
@@ -37,6 +41,7 @@ export default function LoginPage() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,19 +62,11 @@ export default function LoginPage() {
 
         console.log("LOGIN RESPONSE:", res);
 
-        // ---------------------------------------------------
-        // CHECK TOKEN
-        // ---------------------------------------------------
-
         if (!res?.token) {
           throw new Error(
             "Login successful but authentication token was not received."
           );
         }
-
-        // ---------------------------------------------------
-        // SAVE TOKEN
-        // ---------------------------------------------------
 
         localStorage.setItem("token", res.token);
 
@@ -77,10 +74,6 @@ export default function LoginPage() {
           "TOKEN SAVED:",
           !!localStorage.getItem("token")
         );
-
-        // ---------------------------------------------------
-        // GO TO DASHBOARD
-        // ---------------------------------------------------
 
         router.replace("/");
       }
@@ -98,7 +91,6 @@ export default function LoginPage() {
         });
 
         setIsLogin(true);
-
         setName("");
         setEmail("");
         setPassword("");
@@ -122,26 +114,77 @@ export default function LoginPage() {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
+        width: "100%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background:
-          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        p: 2,
+        position: "relative",
+        overflow: "auto",
+
+        backgroundImage: `
+          linear-gradient(
+            135deg,
+            rgba(0, 0, 0, 0.72),
+            rgba(35, 35, 35, 0.48)
+          ),
+          url("/images/login-bg.png")
+        `,
+
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+
+        px: {
+          xs: 1.5,
+          sm: 2,
+          md: 3,
+        },
+
+        py: {
+          xs: 2,
+          sm: 3,
+        },
       }}
     >
-      <Fade in>
+      <Fade in timeout={450}>
         <Paper
-          elevation={10}
+          elevation={12}
           sx={{
-            p: {
-              xs: 3,
-              md: 5,
-            },
             width: "100%",
-            maxWidth: 450,
-            borderRadius: 3,
+
+            /*
+             * Desktop width
+             */
+            maxWidth: {
+              xs: 360,
+              sm: 400,
+              md: 400,
+            },
+
+            /*
+             * Compact padding
+             */
+            p: {
+              xs: 2.2,
+              sm: 3,
+              md: 3.5,
+            },
+
+            borderRadius: {
+              xs: 2.5,
+              sm: 3,
+            },
+
+            backgroundColor: "rgba(255,255,255,0.96)",
+
+            backdropFilter: "blur(12px)",
+
+            border:
+              "1px solid rgba(255,255,255,0.7)",
+
+            boxShadow:
+              "0 18px 50px rgba(0,0,0,0.25)",
           }}
         >
           {/* =================================================
@@ -151,34 +194,72 @@ export default function LoginPage() {
           <Box
             sx={{
               textAlign: "center",
-              mb: 3,
+              mb: {
+                xs: 2,
+                sm: 2.5,
+              },
             }}
           >
             <Avatar
               sx={{
-                m: "0 auto",
-                bgcolor: "primary.main",
-                width: 64,
-                height: 64,
-                mb: 2,
+                width: {
+                  xs: 48,
+                  sm: 54,
+                },
+
+                height: {
+                  xs: 48,
+                  sm: 54,
+                },
+
+                mx: "auto",
+
+                mb: {
+                  xs: 1,
+                  sm: 1.3,
+                },
+
+                bgcolor: "#1565C0",
+
+                boxShadow:
+                  "0 6px 16px rgba(21,101,192,0.3)",
               }}
             >
-              <LockOutlinedIcon fontSize="large" />
+              <LockOutlinedIcon
+                sx={{
+                  fontSize: {
+                    xs: 24,
+                    sm: 28,
+                  },
+                }}
+              />
             </Avatar>
 
             <Typography
-              variant="h4"
-              fontWeight="bold"
-              color="primary"
+              sx={{
+                fontWeight: 800,
+                color: "#184577",
+
+                fontSize: {
+                  xs: "1.35rem",
+                  sm: "1.55rem",
+                  md: "1.7rem",
+                },
+
+                lineHeight: 1.2,
+              }}
             >
               Weekly Assessment ERP
             </Typography>
 
             <Typography
-              variant="body2"
-              color="text.secondary"
               sx={{
                 mt: 0.5,
+                color: "text.secondary",
+                fontSize: {
+                  xs: "0.78rem",
+                  sm: "0.82rem",
+                },
               }}
             >
               {isLogin
@@ -195,8 +276,14 @@ export default function LoginPage() {
             <Alert
               severity="error"
               sx={{
-                mb: 2,
-                borderRadius: 2,
+                mb: 1.5,
+                py: 0.3,
+                px: 1.2,
+                borderRadius: 1.5,
+
+                "& .MuiAlert-message": {
+                  fontSize: "0.8rem",
+                },
               }}
             >
               {error}
@@ -207,14 +294,18 @@ export default function LoginPage() {
               FORM
           ================================================= */}
 
-          <form onSubmit={handleSubmit}>
+          <Box
+            component="form"
+            onSubmit={handleSubmit}
+          >
             {/* NAME */}
 
             {!isLogin && (
               <TextField
                 label="Full Name"
                 fullWidth
-                margin="normal"
+                size="small"
+                margin="dense"
                 value={name}
                 onChange={(e) =>
                   setName(e.target.value)
@@ -229,7 +320,8 @@ export default function LoginPage() {
               label="Email Address"
               type="email"
               fullWidth
-              margin="normal"
+              size="small"
+              margin="dense"
               value={email}
               onChange={(e) =>
                 setEmail(e.target.value)
@@ -242,9 +334,10 @@ export default function LoginPage() {
 
             <TextField
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               fullWidth
-              margin="normal"
+              size="small"
+              margin="dense"
               value={password}
               onChange={(e) =>
                 setPassword(e.target.value)
@@ -255,6 +348,28 @@ export default function LoginPage() {
                   ? "current-password"
                   : "new-password"
               }
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      edge="end"
+                      onClick={() =>
+                        setShowPassword(
+                          (prev) => !prev
+                        )
+                      }
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <VisibilityOffIcon fontSize="small" />
+                      ) : (
+                        <VisibilityIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
 
             {/* ROLE */}
@@ -262,7 +377,8 @@ export default function LoginPage() {
             {!isLogin && (
               <FormControl
                 fullWidth
-                margin="normal"
+                size="small"
+                margin="dense"
               >
                 <InputLabel>
                   Role
@@ -304,14 +420,26 @@ export default function LoginPage() {
               type="submit"
               variant="contained"
               fullWidth
-              size="large"
-              sx={{
-                mt: 2,
-                py: 1.5,
-                borderRadius: 2,
-                fontWeight: "bold",
-              }}
+              size="medium"
               disabled={loading}
+              sx={{
+                mt: 1.5,
+                minHeight: 42,
+                borderRadius: 1.5,
+                fontWeight: 700,
+                fontSize: "0.9rem",
+
+                backgroundColor: "#1565C0",
+
+                boxShadow:
+                  "0 5px 12px rgba(21,101,192,0.25)",
+
+                "&:hover": {
+                  backgroundColor: "#0D47A1",
+                  boxShadow:
+                    "0 7px 16px rgba(13,71,161,0.3)",
+                },
+              }}
             >
               {loading
                 ? "Please wait..."
@@ -319,29 +447,51 @@ export default function LoginPage() {
                 ? "Sign In"
                 : "Create Account"}
             </Button>
-          </form>
+          </Box>
 
           {/* =================================================
               DIVIDER
           ================================================= */}
 
-          <Divider sx={{ my: 2 }}>
+          <Divider
+            sx={{
+              my: {
+                xs: 1.5,
+                sm: 2,
+              },
+            }}
+          >
             <Chip
               label="OR"
               size="small"
+              sx={{
+                height: 22,
+                fontSize: "0.7rem",
+              }}
             />
           </Divider>
 
           {/* =================================================
-              LOGIN / REGISTER TOGGLE
+              LOGIN / REGISTER
           ================================================= */}
 
           <Button
             fullWidth
             variant="text"
+            size="small"
             onClick={() => {
               setIsLogin(!isLogin);
               setError("");
+              setShowPassword(false);
+            }}
+            sx={{
+              minHeight: 36,
+              fontWeight: 600,
+              fontSize: {
+                xs: "0.78rem",
+                sm: "0.82rem",
+              },
+              color: "#1565C0",
             }}
           >
             {isLogin
@@ -353,4 +503,3 @@ export default function LoginPage() {
     </Box>
   );
 }
-

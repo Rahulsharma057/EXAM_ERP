@@ -1,6 +1,6 @@
-const Anthropic = require("@anthropic-ai/sdk");
-const pdfParse = require("pdf-parse");
+const { PDFParse } = require("pdf-parse");
 const mammoth = require("mammoth");
+const Tesseract = require("tesseract.js");
 
 const Assessment = require("../models/Assessment");
 const AssessmentSection = require("../models/AssessmentSection");
@@ -9,8 +9,6 @@ const AssessmentPart = require("../models/AssessmentPart");
 const AssessmentSubmission = require("../models/AssessmentSubmission");
 
 const { recalculateAssessmentTotals } = require("./assessmentController");
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const VALID_QUESTION_TYPES = [
   "YES_NO",
@@ -34,10 +32,6 @@ const isTeacherAssignedToBatch = (user, batchId) => {
   return assignedBatches.includes(batchId?.toString());
 };
 
-// NOTE: same gap flagged earlier — this only restricts teachers to their
-// assigned batch, org_admin/centre_admin are not scoped to their own
-// organisation/centre here. Apply the same hierarchy fix here once it's
-// added to the Part/Section controllers, so this stays consistent.
 const getAssessmentAccess = async (assessmentId, user) => {
   const assessment = await Assessment.findById(assessmentId);
   if (!assessment) {
@@ -57,20 +51,211 @@ const isStructureLocked = async (assessment) => {
   return Boolean(hasSubmissions) || ["PUBLISHED", "CLOSED", "ARCHIVED"].includes(assessment.status);
 };
 
-// Strips ```json fences etc. and parses the model's response defensively.
-const parseModelJson = (text) => {
-  const cleaned = String(text || "")
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+/* =========================================================
+   FREE / LOCAL QUESTION-PAPER PARSER
+   ---------------------------------------------------------
+   No paid AI API involved. Works off plain text (extracted
+   from PDF/DOCX directly, or via free OCR for images) using
+   regex + heuristics to split a question paper into a
+   Part -> Section -> Question tree (or a flat Section ->
+   Question list when the assessment does not use Parts).
 
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("Could not find a JSON array in the model's response.");
+   Detection rules (heuristic, not AI understanding):
+   - "Part <label>" headings start a new Part (only when the
+     assessment uses Parts)
+   - "Section <label>" headings start a new Section inside
+     the current Part (or at the top level otherwise)
+   - Numbered lines ("1.", "Q1)", "Q1:") start a new Question
+   - Lettered lines ("A)", "(a)", "A.") directly under a
+     question are treated as its options
+   - "[2 marks]" / "(2 pts)" patterns set maxPoints
+   - Questions found before any Section heading are grouped
+     under an implicit "General" section; before any Part
+     heading, under an implicit "Part 1"
+========================================================= */
+
+const QUESTION_START_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})\s*[\.\):]\s+(.*)$/i;
+const OPTION_LINE_RE = /^\s*\(?([A-Da-d])\)?[\.\):]\s+(.*)$/;
+const PART_HEADING_RE = /^\s*part\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
+const SECTION_HEADING_RE = /^\s*section\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
+const MARKS_RE = /\(?\[?(\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)\]?\)?/i;
+const MULTI_SELECT_HINT_RE = /select all that apply|choose all|more than one answer|check all/i;
+const TRUE_FALSE_RE = /true\s*\/\s*false|true or false/i;
+const YES_NO_RE = /yes\s*\/\s*no|yes or no/i;
+const NUMBER_HINT_RE = /calculate|how many|what is the (value|sum|result|answer)|find the value|numeric answer/i;
+const OPTIONAL_HINT_RE = /\(optional\)/i;
+
+const cleanLine = (line) => String(line || "").replace(/\r/g, "").trim();
+
+const extractMarks = (text) => {
+  const match = text.match(MARKS_RE);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+};
+
+const detectQuestionType = (questionText, optionLines) => {
+  if (optionLines.length >= 2) {
+    return MULTI_SELECT_HINT_RE.test(questionText) ? "MULTIPLE_CHOICE" : "SINGLE_CHOICE";
+  }
+  if (TRUE_FALSE_RE.test(questionText) || YES_NO_RE.test(questionText)) {
+    return "YES_NO";
+  }
+  if (NUMBER_HINT_RE.test(questionText)) {
+    return "NUMBER";
+  }
+  return "TEXT";
+};
+
+const headingLabel = (keyword, id, rest) => {
+  const label = `${keyword} ${id}`.trim();
+  return rest ? `${label}: ${rest}`.trim() : label;
+};
+
+/**
+ * Parses raw text of a question paper into a Part -> Section -> Question
+ * tree (hasParts = true) or a flat Section -> Question list (hasParts =
+ * false). No AI call — pure regex/heuristics.
+ */
+const parseStructuredQuestions = (rawText, hasParts) => {
+  const lines = String(rawText || "")
+    .split("\n")
+    .map(cleanLine)
+    .filter((line) => line.length > 0);
+
+  const parts = []; // used when hasParts = true
+  const flatSections = []; // used when hasParts = false
+
+  let currentPart = null;
+  let currentSection = null;
+
+  let currentQuestion = null;
+  let bodyLines = [];
+  let optionLines = [];
+
+  const findOrCreatePart = (name) => {
+    let part = parts.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (!part) {
+      part = { name, sections: [] };
+      parts.push(part);
+    }
+    return part;
+  };
+
+  const findOrCreateSectionIn = (sectionsArr, name) => {
+    let section = sectionsArr.find((s) => s.name.toLowerCase() === name.toLowerCase());
+    if (!section) {
+      section = { name, questions: [] };
+      sectionsArr.push(section);
+    }
+    return section;
+  };
+
+  const getActiveSectionsArray = () => {
+    if (!hasParts) return flatSections;
+    if (!currentPart) {
+      currentPart = findOrCreatePart("Part 1");
+    }
+    return currentPart.sections;
+  };
+
+  const ensureCurrentSection = () => {
+    const sectionsArr = getActiveSectionsArray();
+    if (!currentSection || !sectionsArr.includes(currentSection)) {
+      currentSection = findOrCreateSectionIn(sectionsArr, "General");
+    }
+    return currentSection;
+  };
+
+  const flushCurrentQuestion = () => {
+    if (!currentQuestion) return;
+
+    const fullBody = [currentQuestion.firstLine, ...bodyLines].join(" ").trim();
+    const marks = extractMarks(fullBody);
+    const options = optionLines.map((opt) => opt.replace(OPTION_LINE_RE, "$2").trim());
+    const questionText = fullBody.replace(MARKS_RE, "").trim();
+
+    if (questionText) {
+      const section = ensureCurrentSection();
+      section.questions.push({
+        questionText,
+        questionType: detectQuestionType(fullBody, options),
+        options,
+        maxPoints: marks !== null ? marks : 1,
+        isRequired: !OPTIONAL_HINT_RE.test(fullBody),
+      });
+    }
+
+    currentQuestion = null;
+    bodyLines = [];
+    optionLines = [];
+  };
+
+  for (const line of lines) {
+    if (hasParts) {
+      const partMatch = line.match(PART_HEADING_RE);
+      if (partMatch) {
+        flushCurrentQuestion();
+        currentPart = findOrCreatePart(headingLabel("Part", partMatch[1], partMatch[2]));
+        currentSection = null;
+        continue;
+      }
+    }
+
+    const sectionMatch = line.match(SECTION_HEADING_RE);
+    if (sectionMatch) {
+      flushCurrentQuestion();
+      const sectionsArr = getActiveSectionsArray();
+      currentSection = findOrCreateSectionIn(sectionsArr, headingLabel("Section", sectionMatch[1], sectionMatch[2]));
+      continue;
+    }
+
+    // If this assessment has no Parts, still treat a stray "Part X" line
+    // as a section-level boundary rather than losing it entirely.
+    if (!hasParts) {
+      const partAsSectionMatch = line.match(PART_HEADING_RE);
+      if (partAsSectionMatch) {
+        flushCurrentQuestion();
+        currentSection = findOrCreateSectionIn(
+          flatSections,
+          headingLabel("Part", partAsSectionMatch[1], partAsSectionMatch[2])
+        );
+        continue;
+      }
+    }
+
+    const questionMatch = line.match(QUESTION_START_RE);
+    if (questionMatch) {
+      flushCurrentQuestion();
+      currentQuestion = { number: questionMatch[1], firstLine: questionMatch[2] };
+      continue;
+    }
+
+    const optionMatch = line.match(OPTION_LINE_RE);
+    if (optionMatch && currentQuestion) {
+      optionLines.push(line);
+      continue;
+    }
+
+    if (currentQuestion) {
+      bodyLines.push(line);
+    }
+    // Lines before the first detected question number are ignored
+    // (typically paper title, instructions, student name fields, etc.)
   }
 
-  return JSON.parse(cleaned.slice(start, end + 1));
+  flushCurrentQuestion();
+
+  if (hasParts) {
+    return parts
+      .map((part) => ({
+        name: part.name,
+        sections: part.sections.filter((s) => s.questions.length > 0),
+      }))
+      .filter((part) => part.sections.length > 0);
+  }
+
+  return flatSections.filter((s) => s.questions.length > 0);
 };
 
 const sanitizeParsedQuestions = (raw) => {
@@ -98,35 +283,45 @@ const sanitizeParsedQuestions = (raw) => {
         options,
         maxPoints,
         isRequired: q?.isRequired === false ? false : true,
-        suggestedSection: q?.suggestedSection ? String(q.suggestedSection).trim() : null,
       };
     })
     .filter(Boolean);
 };
 
-const EXTRACTION_PROMPT = `You are extracting exam questions from a question paper so they can be imported into an assessment builder.
+const buildQuestionDocs = (questions, assessmentId, partId, sectionId) => {
+  return questions
+    .map((q, index) => {
+      const questionText = String(q?.questionText || "").trim();
+      if (!questionText) return null;
 
-Read the provided content (text or image of a question paper) and return ONLY a JSON array — no prose, no markdown fences, no explanation before or after it.
+      const questionType = VALID_QUESTION_TYPES.includes(String(q?.questionType).toUpperCase())
+        ? String(q.questionType).toUpperCase()
+        : "TEXT";
 
-Each item in the array must look like this:
-{
-  "questionText": "the full question text",
-  "questionType": "YES_NO" | "TEXT" | "NUMBER" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE",
-  "options": ["option A", "option B"],   // only for SINGLE_CHOICE / MULTIPLE_CHOICE, else []
-  "maxPoints": 2,                          // best guess from marks mentioned near the question, default 1 if not mentioned
-  "isRequired": true,
-  "suggestedSection": "Section A"          // section/part heading this question falls under, or null if none is visible
-}
+      const options = ["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(questionType)
+        ? (Array.isArray(q?.options) ? q.options.map((o) => String(o).trim()).filter(Boolean) : [])
+        : [];
 
-Rules:
-- questionType guess: if options are lettered/numbered (A/B/C/D, 1/2/3/4) and only one answer is expected, use SINGLE_CHOICE. If multiple answers are expected ("select all that apply"), use MULTIPLE_CHOICE. If it's a yes/no or true/false question, use YES_NO. If it expects a numeric answer, use NUMBER. Otherwise use TEXT.
-- Preserve the original question order.
-- Do not invent questions that are not present in the source.
-- Do not include answer keys or instructions as questions.
-- Return [] if no questions are found.`;
+      return {
+        assessment: assessmentId,
+        part: partId,
+        section: sectionId,
+        questionText,
+        questionType,
+        options,
+        maxPoints: Number.isFinite(Number(q?.maxPoints)) && Number(q.maxPoints) >= 0 ? Number(q.maxPoints) : 1,
+        isRequired: q?.isRequired !== false,
+        displayOrder: index + 1,
+        isActive: true,
+        scoringConfig: {},
+      };
+    })
+    .filter(Boolean);
+};
 
 /* =========================================================
-   EXTRACT — parse a file into draft questions (NOT saved yet)
+   EXTRACT — parse a file into a draft Part/Section/Question
+   tree (NOT saved yet)
 ========================================================= */
 
 exports.extractQuestions = async (req, res) => {
@@ -149,20 +344,35 @@ exports.extractQuestions = async (req, res) => {
 
     const { buffer, mimetype, originalname } = req.file;
 
-    let modelContent; // Anthropic message content blocks
+    let text = "";
     let warnings = [];
 
     if (mimetype.startsWith("image/")) {
-      modelContent = [
-        {
-          type: "image",
-          source: { type: "base64", media_type: mimetype, data: buffer.toString("base64") },
-        },
-        { type: "text", text: EXTRACTION_PROMPT },
-      ];
+      warnings.push(
+        "Extracted from a photo using free OCR — accuracy is lower than a text-based file, especially for handwriting. Please review the detected structure carefully before saving."
+      );
+
+      const {
+        data: { text: ocrText },
+      } = await Tesseract.recognize(buffer, "eng");
+
+      text = ocrText || "";
+
+      if (text.trim().length < 20) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Could not read readable text from this photo. Try a clearer, well-lit photo of a printed (not handwritten) question paper, or upload a text-based PDF/DOCX instead.",
+        });
+      }
     } else if (mimetype === "application/pdf") {
-      const parsed = await pdfParse(buffer);
-      const text = (parsed.text || "").trim();
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        text = (result?.text || "").trim();
+      } finally {
+        await parser.destroy();
+      }
 
       if (text.length < 40) {
         return res.status(400).json({
@@ -171,20 +381,18 @@ exports.extractQuestions = async (req, res) => {
             "This PDF doesn't seem to contain selectable text (likely a scanned/photographed PDF). Please use the camera/photo option instead, or upload a text-based PDF/DOCX.",
         });
       }
-
-      modelContent = [{ type: "text", text: `${EXTRACTION_PROMPT}\n\n--- QUESTION PAPER TEXT ---\n${text}` }];
     } else if (
       mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ) {
-      const { value: text } = await mammoth.extractRawText({ buffer });
-      if (!text || text.trim().length < 40) {
+      const { value: docText } = await mammoth.extractRawText({ buffer });
+      text = (docText || "").trim();
+
+      if (text.length < 40) {
         return res.status(400).json({
           success: false,
           message: "Could not find readable text in this Word document.",
         });
       }
-
-      modelContent = [{ type: "text", text: `${EXTRACTION_PROMPT}\n\n--- QUESTION PAPER TEXT ---\n${text}` }];
     } else {
       return res.status(400).json({
         success: false,
@@ -192,46 +400,53 @@ exports.extractQuestions = async (req, res) => {
       });
     }
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 8000,
-      messages: [{ role: "user", content: modelContent }],
-    });
+    const hasParts = Boolean(assessment.hasParts);
+    const rawStructure = parseStructuredQuestions(text, hasParts);
 
-    const textBlock = response.content.find((block) => block.type === "text");
-    if (!textBlock) {
-      return res.status(502).json({ success: false, message: "The model did not return any text." });
+    let totalQuestions = 0;
+    let structure;
+
+    if (hasParts) {
+      structure = rawStructure
+        .map((part) => ({
+          name: part.name,
+          sections: part.sections
+            .map((section) => {
+              const questions = sanitizeParsedQuestions(section.questions);
+              totalQuestions += questions.length;
+              return { name: section.name, questions };
+            })
+            .filter((section) => section.questions.length > 0),
+        }))
+        .filter((part) => part.sections.length > 0);
+    } else {
+      structure = rawStructure
+        .map((section) => {
+          const questions = sanitizeParsedQuestions(section.questions);
+          totalQuestions += questions.length;
+          return { name: section.name, questions };
+        })
+        .filter((section) => section.questions.length > 0);
     }
 
-    let rawQuestions;
-    try {
-      rawQuestions = parseModelJson(textBlock.text);
-    } catch (parseErr) {
-      console.error("IMPORT PARSE ERROR:", parseErr, textBlock.text);
-      return res.status(502).json({
-        success: false,
-        message: "Could not understand the extracted content. Try a clearer photo/file, or add questions manually.",
-      });
-    }
-
-    const questions = sanitizeParsedQuestions(rawQuestions);
-
-    if (questions.length === 0) {
+    if (totalQuestions === 0) {
       return res.status(400).json({
         success: false,
-        message: "No questions could be found in this file. Try a clearer photo, or a different file.",
+        message:
+          "No questions could be detected in this file. This free parser relies on numbered questions (e.g. \"1.\", \"Q1)\") and headings like \"Part A\" / \"Section 1\" — try a clearer file, a different format, or add questions manually.",
       });
     }
 
-    if (mimetype.startsWith("image/")) {
-      warnings.push("Extracted from a photo — please double-check question text, options and marks before saving.");
-    }
+    warnings.push(
+      "Parts, Sections and Questions were auto-detected using free local parsing (no AI) based on headings and numbering — please review the structure before saving."
+    );
 
     return res.json({
       success: true,
       data: {
         fileName: originalname,
-        questions,
+        hasParts,
+        structure,
         warnings,
       },
     });
@@ -242,13 +457,14 @@ exports.extractQuestions = async (req, res) => {
 };
 
 /* =========================================================
-   COMMIT — actually save the (reviewed/edited) questions
+   COMMIT — actually save the (reviewed/edited) Part/Section/
+   Question tree
 ========================================================= */
 
 exports.commitImportedQuestions = async (req, res) => {
   try {
     const { assessmentId } = req.params;
-    const { partId, sectionId, newSectionName, questions } = req.body;
+    const { structure } = req.body;
 
     const { assessment, error } = await getAssessmentAccess(assessmentId, req.user);
     if (error) return res.status(error.status).json({ success: false, message: error.message });
@@ -260,100 +476,111 @@ exports.commitImportedQuestions = async (req, res) => {
       });
     }
 
-    if (!Array.isArray(questions) || questions.length === 0) {
+    if (!Array.isArray(structure) || structure.length === 0) {
       return res.status(400).json({ success: false, message: "No questions to import." });
     }
 
-    // --------------------------------------------------------
-    // RESOLVE PART (only relevant if assessment.hasParts)
-    // --------------------------------------------------------
-    let resolvedPartId = null;
-    if (assessment.hasParts) {
-      if (!partId) {
-        return res.status(400).json({ success: false, message: "Select a Part to import into." });
-      }
-      const part = await AssessmentPart.findOne({ _id: partId, assessment: assessmentId, isActive: true });
-      if (!part) {
-        return res.status(400).json({ success: false, message: "Invalid Part." });
-      }
-      resolvedPartId = part._id;
-    } else if (partId) {
-      return res.status(400).json({ success: false, message: "This assessment does not use Parts." });
-    }
+    let createdParts = 0;
+    let createdSections = 0;
+    let createdQuestions = 0;
 
-    // --------------------------------------------------------
-    // RESOLVE SECTION — reuse an existing one, or create new
-    // --------------------------------------------------------
-    let section;
-    if (sectionId) {
-      section = await AssessmentSection.findOne({
-        _id: sectionId,
-        assessment: assessmentId,
-        isActive: true,
-        part: resolvedPartId,
-      });
-      if (!section) {
-        return res.status(400).json({ success: false, message: "Selected section not found." });
+    if (assessment.hasParts) {
+      let partOrder = await AssessmentPart.countDocuments({ assessment: assessmentId, isActive: true });
+
+      for (const partInput of structure) {
+        const sectionsInput = Array.isArray(partInput?.sections) ? partInput.sections : [];
+        const hasAnyQuestion = sectionsInput.some(
+          (s) => Array.isArray(s?.questions) && s.questions.length > 0
+        );
+        if (!hasAnyQuestion) continue;
+
+        const partName = String(partInput?.name || "Imported Part").trim() || "Imported Part";
+
+        partOrder += 1;
+        const part = await AssessmentPart.create({
+          assessment: assessmentId,
+          name: partName,
+          description: "",
+          isOptional: false,
+          displayOrder: partOrder,
+          isActive: true,
+          createdBy: getUserId(req),
+          updatedBy: getUserId(req),
+        });
+        createdParts += 1;
+
+        let sectionOrder = 0;
+
+        for (const sectionInput of sectionsInput) {
+          const questions = Array.isArray(sectionInput?.questions) ? sectionInput.questions : [];
+          if (questions.length === 0) continue;
+
+          const sectionName = String(sectionInput?.name || "Imported Questions").trim() || "Imported Questions";
+
+          sectionOrder += 1;
+          const section = await AssessmentSection.create({
+            assessment: assessmentId,
+            part: part._id,
+            name: sectionName,
+            description: "",
+            displayOrder: sectionOrder,
+            isActive: true,
+          });
+          createdSections += 1;
+
+          const docs = buildQuestionDocs(questions, assessmentId, part._id, section._id);
+          if (docs.length) {
+            await AssessmentQuestion.insertMany(docs);
+            createdQuestions += docs.length;
+          }
+        }
       }
     } else {
-      const name = String(newSectionName || "Imported Questions").trim() || "Imported Questions";
-      const sectionFilter = { assessment: assessmentId, isActive: true, part: resolvedPartId };
-      const count = await AssessmentSection.countDocuments(sectionFilter);
-      section = await AssessmentSection.create({
+      let sectionOrder = await AssessmentSection.countDocuments({
         assessment: assessmentId,
-        part: resolvedPartId,
-        name,
-        description: "",
-        displayOrder: count + 1,
         isActive: true,
+        part: null,
       });
+
+      for (const sectionInput of structure) {
+        const questions = Array.isArray(sectionInput?.questions) ? sectionInput.questions : [];
+        if (questions.length === 0) continue;
+
+        const sectionName = String(sectionInput?.name || "Imported Questions").trim() || "Imported Questions";
+
+        sectionOrder += 1;
+        const section = await AssessmentSection.create({
+          assessment: assessmentId,
+          part: null,
+          name: sectionName,
+          description: "",
+          displayOrder: sectionOrder,
+          isActive: true,
+        });
+        createdSections += 1;
+
+        const docs = buildQuestionDocs(questions, assessmentId, null, section._id);
+        if (docs.length) {
+          await AssessmentQuestion.insertMany(docs);
+          createdQuestions += docs.length;
+        }
+      }
     }
 
-    // --------------------------------------------------------
-    // INSERT QUESTIONS
-    // --------------------------------------------------------
-    const existingCount = await AssessmentQuestion.countDocuments({
-      section: section._id,
-      isActive: true,
-    });
-
-    const docs = questions.map((q, index) => {
-      const questionType = VALID_QUESTION_TYPES.includes(String(q.questionType).toUpperCase())
-        ? String(q.questionType).toUpperCase()
-        : "TEXT";
-
-      const options = ["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(questionType)
-        ? (Array.isArray(q.options) ? q.options.map((o) => String(o).trim()).filter(Boolean) : [])
-        : [];
-
-      return {
-        assessment: assessmentId,
-        part: resolvedPartId,
-        section: section._id,
-        questionText: String(q.questionText || "").trim(),
-        questionType,
-        options,
-        maxPoints: Number.isFinite(Number(q.maxPoints)) && Number(q.maxPoints) >= 0 ? Number(q.maxPoints) : 1,
-        isRequired: q.isRequired !== false,
-        displayOrder: existingCount + index + 1,
-        isActive: true,
-        scoringConfig: {},
-      };
-    });
-
-    const validDocs = docs.filter((d) => d.questionText);
-    if (validDocs.length === 0) {
+    if (createdQuestions === 0) {
       return res.status(400).json({ success: false, message: "None of the imported questions had valid text." });
     }
 
-    const created = await AssessmentQuestion.insertMany(validDocs);
-
     await recalculateAssessmentTotals(assessmentId);
+
+    const message = assessment.hasParts
+      ? `${createdQuestions} question(s) imported across ${createdParts} part(s) and ${createdSections} section(s).`
+      : `${createdQuestions} question(s) imported across ${createdSections} section(s).`;
 
     return res.status(201).json({
       success: true,
-      message: `${created.length} question(s) imported into "${section.name}".`,
-      data: { section, questions: created },
+      message,
+      data: { createdParts, createdSections, createdQuestions },
     });
   } catch (error) {
     console.error("COMMIT IMPORT ERROR:", error);

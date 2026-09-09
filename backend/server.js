@@ -22,7 +22,7 @@ const resultRoutes = require("./routes/results");
 const excelRoutes = require("./routes/excel");
 const studentRoutes = require("./routes/students");
 const assessmentPartRoutes = require("./routes/assessmentPartRoutes");
-
+const assessmentImportRoutes = require("./routes/assessmentImportRoutes");
 // ======================================================
 // DATABASE
 // ======================================================
@@ -102,6 +102,7 @@ app.use("/api/excel", excelRoutes);
 app.use("/api/org/students", studentRoutes);
 
 app.use("/api/assessment-parts", assessmentPartRoutes);
+app.use("/api/assessment-import", assessmentImportRoutes);
 // ======================================================
 // ERROR HANDLER
 // ======================================================

@@ -39,7 +39,12 @@ const isTeacherAssignedToBatch = (user, batchId) => {
 };
 
 const getAccessibleAssessment = async (assessmentId, user) => {
-  const assessment = await Assessment.findById(assessmentId);
+  const assessment = await Assessment.findById(assessmentId)
+    .populate("organisation", "name")
+    .populate("centre", "name")
+    .populate("course", "name")
+    .populate("batch", "name")
+    .populate("createdBy", "name");
 
   if (!assessment) {
     return {
@@ -51,15 +56,23 @@ const getAccessibleAssessment = async (assessmentId, user) => {
     };
   }
 
+  // ==========================================================
+  // TEACHER SECURITY
+  // ==========================================================
+
+  const batchId =
+    assessment.batch?._id || assessment.batch;
+
   if (
     isTeacher(user) &&
-    !isTeacherAssignedToBatch(user, assessment.batch)
+    !isTeacherAssignedToBatch(user, batchId)
   ) {
     return {
       assessment: null,
       error: {
         status: 403,
-        message: "You are not authorized to access this assessment",
+        message:
+          "You are not authorized to access this assessment",
       },
     };
   }
