@@ -560,7 +560,7 @@ export default function ResultsTable({
           disabled={exporting}
           sx={{
             maxWidth: { xs: "100%", sm: 180 },
-            borderRadius: 2,
+            borderRadius: 1,
             textTransform: "none",
             fontWeight: 700,
           }}
@@ -570,10 +570,21 @@ export default function ResultsTable({
       </Box>
       <TableContainer
         component={Paper}
-        sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider" }}
+        sx={{ borderRadius: 1, border: "1px solid", borderColor: "divider" }}
       >
-        <Table size="medium" stickyHeader>
-          <TableHead>
+        <Table size="small" stickyHeader>
+   <TableHead
+  sx={{
+    backgroundColor: "#0D47A1",
+    "& .MuiTableCell-root": {
+      backgroundColor: "#0D47A1",
+      color: "#FFFFFF",
+      fontWeight: 700,
+      fontSize: "0.7rem",
+      borderBottom: "1px solid #0A3A82",
+    },
+  }}
+>
             <TableRow sx={{ "& th": { bgcolor: "grey.50", fontWeight: 700 } }}>
               <TableCell sx={{ whiteSpace: "nowrap" }}>Roll No</TableCell>
               <TableCell>Student</TableCell>

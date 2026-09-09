@@ -598,150 +598,184 @@ export default function AssessmentResultsPage() {
           px: {
             xs: 1,
             sm: 1.5,
-            md: 2,
-            lg: 2.5,
+            md: 1,
+            lg: 1.5,
           },
 
           py: {
             xs: 1,
             sm: 1.5,
-            md: 1.75,
+            md: 1,
           },
         }}
       >
         {/* ================================================== */}
         {/* HEADER */}
         {/* ================================================== */}
+<Paper
+  elevation={0}
+  sx={{
+    mb: 1.25,
+    px: {
+      xs: 1.25,
+      sm: 1.5,
+    },
+    py: 1.1,
 
-        <Paper
-          elevation={0}
+    //borderRadius: 1.5,
+    border: "1px solid #0D47A1",
+
+    background:
+      "linear-gradient(135deg, #0D47A1 0%, #373fb1 55%, #3836ad 100%)",
+
+    color: "#FFFFFF",
+  }}
+>
+  <Stack
+    direction={{
+      xs: "column",
+      sm: "row",
+    }}
+    spacing={1}
+    alignItems={{
+      xs: "flex-start",
+      sm: "center",
+    }}
+    justifyContent="space-between"
+  >
+    {/* LEFT */}
+    <Stack
+      direction="row"
+      spacing={1}
+      alignItems="center"
+      sx={{
+        minWidth: 0,
+        flex: 1,
+        width: "100%",
+      }}
+    >
+      {/* ICON */}
+      <Box
+        sx={{
+          width: 36,
+          height: 36,
+          minWidth: 36,
+          borderRadius: 1,
+
+          backgroundColor: "rgba(255,255,255,0.14)",
+          color: "#FFFFFF",
+
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+
+          border: "1px solid rgba(255,255,255,0.18)",
+        }}
+      >
+        <AssessmentIcon fontSize="small" />
+      </Box>
+
+      {/* TITLE + META */}
+      <Box sx={{ minWidth: 0 }}>
+        <Stack
+          direction="row"
+          spacing={0.6}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Typography
+            sx={{
+              fontSize: {
+                xs: "0.98rem",
+                sm: "1.1rem",
+              },
+
+              fontWeight: 800,
+              color: "#FFFFFF",
+              lineHeight: 1.2,
+              wordBreak: "break-word",
+            }}
+          >
+            {getDisplayValue(
+              assessment.name,
+              "Assessment Results"
+            )}
+          </Typography>
+
+          <Chip
+            size="small"
+            label={hasParts ? "Parts" : "Sections"}
+            sx={{
+              height: 21,
+
+              color: "#FFFFFF",
+              backgroundColor: "rgba(255,255,255,0.12)",
+
+              border: "1px solid rgba(255,255,255,0.35)",
+
+              fontSize: "0.58rem",
+              fontWeight: 600,
+
+              "& .MuiChip-label": {
+                px: 0.9,
+              },
+            }}
+          />
+        </Stack>
+
+        <Typography
           sx={{
-            mb: 1.25,
-            px: {
-              xs: 1.25,
-              sm: 1.5,
-            },
-            py: 1.1,
-
-            borderRadius: 1.5,
-            border: "1px solid #E6EAF0",
-
-            background: "linear-gradient(135deg, #F8FBFF 0%, #FFFFFF 70%)",
+            mt: 0.25,
+            fontSize: "0.63rem",
+            color: "rgba(255,255,255,0.78)",
           }}
         >
-          <Stack
-            direction={{
-              xs: "column",
-              sm: "row",
-            }}
-            spacing={1}
-            alignItems={{
-              xs: "flex-start",
-              sm: "center",
-            }}
-            justifyContent="space-between"
-          >
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{
-                minWidth: 0,
-                flex: 1,
-              }}
-            >
-              <Box
-                sx={{
-                  width: 36,
-                  height: 36,
-                  minWidth: 36,
-                  borderRadius: 1,
+          {assessment.code
+            ? `Code: ${assessment.code}`
+            : "Assessment Results"}
 
-                  backgroundColor: "#E3F2FD",
-                  color: "#1565C0",
+          {assessment.weekNumber
+            ? ` • Week ${assessment.weekNumber}`
+            : ""}
+        </Typography>
+      </Box>
+    </Stack>
 
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AssessmentIcon fontSize="small" />
-              </Box>
+    {/* REFRESH */}
+    <Tooltip title="Refresh results">
+      <span>
+        <IconButton
+          size="small"
+          onClick={load}
+          disabled={loading}
+          sx={{
+            width: 34,
+            height: 34,
 
-              <Box sx={{ minWidth: 0 }}>
-                <Stack
-                  direction="row"
-                  spacing={0.6}
-                  alignItems="center"
-                  flexWrap="wrap"
-                  useFlexGap
-                >
-                  <Typography
-                    sx={{
-                      fontSize: {
-                        xs: "0.98rem",
-                        sm: "1.1rem",
-                      },
+            color: "#FFFFFF",
 
-                      fontWeight: 800,
-                      color: "#101828",
-                      lineHeight: 1.2,
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {getDisplayValue(assessment.name, "Assessment Results")}
-                  </Typography>
+            border: "1px solid rgba(255,255,255,0.35)",
+            borderRadius: 1,
 
-                  <Chip
-                    size="small"
-                    label={hasParts ? "Parts" : "Sections"}
-                    color="primary"
-                    variant="outlined"
-                    sx={{
-                      height: 21,
-                      fontSize: "0.58rem",
-                      fontWeight: 600,
-                    }}
-                  />
-                </Stack>
+            backgroundColor: "rgba(255,255,255,0.08)",
 
-                <Typography
-                  sx={{
-                    mt: 0.25,
-                    fontSize: "0.63rem",
-                    color: "#667085",
-                  }}
-                >
-                  {assessment.code
-                    ? `Code: ${assessment.code}`
-                    : "Assessment Results"}
+            "&:hover": {
+              backgroundColor: "rgba(255,255,255,0.18)",
+            },
 
-                  {assessment.weekNumber
-                    ? ` • Week ${assessment.weekNumber}`
-                    : ""}
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Tooltip title="Refresh results">
-              <span>
-                <IconButton
-                  size="small"
-                  onClick={load}
-                  disabled={loading}
-                  sx={{
-                    width: 34,
-                    height: 34,
-                    border: "1px solid #D0D5DD",
-                    borderRadius: 1,
-                  }}
-                >
-                  <RefreshIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-          </Stack>
-        </Paper>
+            "&.Mui-disabled": {
+              color: "rgba(255,255,255,0.45)",
+              borderColor: "rgba(255,255,255,0.2)",
+            },
+          }}
+        >
+          <RefreshIcon fontSize="small" />
+        </IconButton>
+      </span>
+    </Tooltip>
+  </Stack>
+</Paper>
 
         {/* ================================================== */}
         {/* ERROR */}
@@ -832,7 +866,7 @@ export default function AssessmentResultsPage() {
             sx={{
               px: 1.5,
               py: 0.8,
-              backgroundColor: "#F8FAFC",
+              backgroundColor: "#2c32a5",
               borderBottom: "1px solid #E6EAF0",
             }}
           >
@@ -840,7 +874,7 @@ export default function AssessmentResultsPage() {
               <LayersIcon
                 sx={{
                   fontSize: 18,
-                  color: "#1565C0",
+                  color: "#fdfdfd",
                 }}
               />
 
@@ -848,7 +882,7 @@ export default function AssessmentResultsPage() {
                 sx={{
                   fontSize: "0.77rem",
                   fontWeight: 800,
-                  color: "#101828",
+                  color: "#ffffff",
                 }}
               >
                 Assessment Overview
@@ -915,8 +949,9 @@ export default function AssessmentResultsPage() {
   elevation={0}
   sx={{
     mb: 1.25,
-    p: 1,
-    borderRadius: 1.5,
+    px: .5,
+    pb: 1,
+    borderRadius: .5,
     border: "1px solid #E6EAF0",
     backgroundColor: "#FFFFFF",
     width: "100%",
