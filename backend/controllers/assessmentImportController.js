@@ -54,51 +54,239 @@ const isStructureLocked = async (assessment) => {
 /* =========================================================
    FREE / LOCAL QUESTION-PAPER PARSER
    ---------------------------------------------------------
-   No paid AI API involved. Works off plain text (extracted
-   from PDF/DOCX directly, or via free OCR for images) using
-   regex + heuristics to split a question paper into a
-   Part -> Section -> Question tree (or a flat Section ->
-   Question list when the assessment does not use Parts).
+   No paid AI API involved. Works off the raw text extracted
+   from a PDF/DOCX (or via free OCR for images).
 
-   Detection rules (heuristic, not AI understanding):
-   - "Part <label>" headings start a new Part (only when the
-     assessment uses Parts)
-   - "Section <label>" headings start a new Section inside
-     the current Part (or at the top level otherwise)
-   - Numbered lines ("1.", "Q1)", "Q1:") start a new Question
-   - Lettered lines ("A)", "(a)", "A.") directly under a
-     question are treated as its options
-   - "[2 marks]" / "(2 pts)" patterns set maxPoints
-   - Questions found before any Section heading are grouped
-     under an implicit "General" section; before any Part
-     heading, under an implicit "Part 1"
+   Real-world PDFs frequently lose true line breaks when their
+   text is extracted (headings end up glued onto the end of the
+   previous line). So instead of splitting by line, this parser
+   scans the WHOLE text as one string and finds question
+   boundaries using a strict, self-correcting sequential number
+   scan ("1.", "2.", "3." ... must increase by exactly 1 to be
+   accepted — this rejects incidental numbers like "(Yes=3, No=0)"
+   or "-- 1 of 2 --").
+
+   For each question's raw text block:
+   - lettered option lists (A) B) C) ...) are detected and
+     pulled out as options
+   - a trailing "(Yes=N, No=0)" or "[N marks]" pattern sets
+     maxPoints (and, for the Yes/No form, marks the question as
+     YES_NO type)
+   - any short leftover text AFTER that pattern is treated as
+     the heading for the NEXT block (this is what recovers
+     headings that got glued onto the end of a question)
+
+   Explicit "Part <label>" / "Section <label>" headings (only
+   when literally present) are still honoured. Any other
+   detected heading is treated as a Section name — this parser
+   cannot reliably tell a Part-level heading apart from a
+   Section-level one when the source document doesn't label
+   them, so everything lands under a single implicit Part in
+   that case. Rename/regroup manually in the review screen if
+   the source paper actually has multiple Parts without saying
+   "Part".
 ========================================================= */
 
-const QUESTION_START_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})\s*[\.\):]\s+(.*)$/i;
-const OPTION_LINE_RE = /^\s*\(?([A-Da-d])\)?[\.\):]\s+(.*)$/;
-const PART_HEADING_RE = /^\s*part\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
-const SECTION_HEADING_RE = /^\s*section\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
-const MARKS_RE = /\(?\[?(\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)\]?\)?/i;
+const NUMBER_TOKEN_RE = /(?<![\w.=])(\d{1,3})[.)]\s+/g;
+const OPTION_TOKEN_RE = /(?<![\w.])([A-D])[.)]\s+/g;
+const PART_HEADING_RE = /^part\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
+const SECTION_HEADING_RE = /^section\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
+// A heading ending in "(...)" — e.g. "Basic Bodice (Sample)", "Unit 2 (Variation)" —
+// is treated as a Part-level heading even without the literal word "Part". This is a
+// common way real assessment papers label major variants/groups.
+const PART_LIKE_QUALIFIER_RE = /\([^)]*\)\s*$/;
+const YES_NO_MARKS_RE = /\(?\s*yes\s*=\s*(\d+(?:\.\d+)?)\s*,?\s*no\s*=\s*0\s*\)?/i;
+const GENERIC_MARKS_RE = /\(?\[?(\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)\]?\)?/i;
+const YES_EQUALS_RE = /yes\s*=\s*\d/i;
 const MULTI_SELECT_HINT_RE = /select all that apply|choose all|more than one answer|check all/i;
 const TRUE_FALSE_RE = /true\s*\/\s*false|true or false/i;
-const YES_NO_RE = /yes\s*\/\s*no|yes or no/i;
+const YES_NO_SLASH_RE = /yes\s*\/\s*no|yes or no/i;
 const NUMBER_HINT_RE = /calculate|how many|what is the (value|sum|result|answer)|find the value|numeric answer/i;
 const OPTIONAL_HINT_RE = /\(optional\)/i;
+const PAGE_BREAK_ARTIFACT_RE = /--\s*\d+\s*of\s*\d+\s*--/gi;
 
-const cleanLine = (line) => String(line || "").replace(/\r/g, "").trim();
-
-const extractMarks = (text) => {
-  const match = text.match(MARKS_RE);
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isFinite(value) ? value : null;
+const headingLabel = (keyword, id, rest) => {
+  const label = `${keyword} ${id}`.trim();
+  return rest ? `${label}: ${rest}`.trim() : label;
 };
 
-const detectQuestionType = (questionText, optionLines) => {
-  if (optionLines.length >= 2) {
+/**
+ * Finds question-start boundaries in the whole text using a strict
+ * sequential scan: the first accepted number must be 1, 2 or 3, and
+ * every subsequent accepted number must be exactly one more than the
+ * last. Anything that breaks the sequence is ignored as noise
+ * (marks like "(Yes=3, No=0)", page-break artifacts, etc).
+ */
+const findQuestionBoundaries = (text) => {
+  const rawMatches = [];
+  let match;
+  NUMBER_TOKEN_RE.lastIndex = 0;
+  while ((match = NUMBER_TOKEN_RE.exec(text)) !== null) {
+    rawMatches.push({
+      number: Number(match[1]),
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+
+  const boundaries = [];
+  let expected = null;
+
+  for (const m of rawMatches) {
+    if (expected === null) {
+      if (m.number >= 1 && m.number <= 3) {
+        boundaries.push(m);
+        expected = m.number + 1;
+      }
+      continue;
+    }
+    if (m.number === expected) {
+      boundaries.push(m);
+      expected += 1;
+    }
+    // else: skip — breaks the sequence, treated as noise
+  }
+
+  return boundaries;
+};
+
+/** Pulls a sequential A) B) C) (D)) option list out of a question's raw text. */
+const extractOptions = (raw) => {
+  const rawMatches = [];
+  let m;
+  OPTION_TOKEN_RE.lastIndex = 0;
+  while ((m = OPTION_TOKEN_RE.exec(raw)) !== null) {
+    rawMatches.push({ letter: m[1].toUpperCase(), start: m.index, end: m.index + m[0].length });
+  }
+
+  const sequence = "ABCD";
+  const accepted = [];
+  let expectedIdx = 0;
+  for (const m2 of rawMatches) {
+    if (m2.letter === sequence[expectedIdx]) {
+      accepted.push(m2);
+      expectedIdx += 1;
+      if (expectedIdx >= sequence.length) break;
+    }
+  }
+
+  if (accepted.length < 2) {
+    return { questionCore: raw, options: [] };
+  }
+
+  const questionCore = raw.slice(0, accepted[0].start).trim();
+  const options = accepted.map((opt, i) => {
+    const start = opt.end;
+    const end = i + 1 < accepted.length ? accepted[i + 1].start : raw.length;
+    return raw.slice(start, end).trim();
+  });
+
+  return { questionCore, options };
+};
+
+/**
+ * Separates a question's marks annotation from a possible trailing
+ * heading fragment that got glued onto it during text extraction.
+ */
+const extractMarksAndHeading = (raw) => {
+  const yesNoMatch = raw.match(YES_NO_MARKS_RE);
+  const genericMatch = raw.match(GENERIC_MARKS_RE);
+
+  let questionText = raw.trim();
+  let maxPoints = 1;
+  let trailingHeading = null;
+  let chosen = null;
+
+  if (yesNoMatch && genericMatch) {
+    chosen =
+      raw.indexOf(yesNoMatch[0]) >= raw.indexOf(genericMatch[0])
+        ? { match: yesNoMatch, strip: false }
+        : { match: genericMatch, strip: true };
+  } else if (yesNoMatch) {
+    chosen = { match: yesNoMatch, strip: false };
+  } else if (genericMatch) {
+    chosen = { match: genericMatch, strip: true };
+  }
+
+  if (chosen) {
+    const { match, strip } = chosen;
+    maxPoints = Number(match[1]) || 1;
+
+    const matchEnd = raw.indexOf(match[0]) + match[0].length;
+    const before = raw.slice(0, matchEnd);
+    const after = raw.slice(matchEnd).trim();
+
+    questionText = strip ? before.replace(match[0], "").trim() : before.trim();
+
+    if (after) {
+      const wordCount = after.split(/\s+/).filter(Boolean).length;
+      if (wordCount > 0 && wordCount <= 8) {
+        trailingHeading = after.replace(/[-\u2013\u2014]+$/, "").trim();
+      } else {
+        // Doesn't look like a short heading — keep it attached rather than lose it
+        questionText = `${questionText} ${after}`.trim();
+      }
+    }
+  }
+
+  questionText = questionText.replace(PAGE_BREAK_ARTIFACT_RE, "").trim();
+  if (trailingHeading) {
+    trailingHeading = trailingHeading.replace(PAGE_BREAK_ARTIFACT_RE, "").trim();
+    if (!trailingHeading) trailingHeading = null;
+  }
+
+  return { questionText, maxPoints, trailingHeading };
+};
+
+/**
+ * Splits a heading fragment around its first "(...)" qualifier, so a glued
+ * blob like "Basic Bodice (Sample) Online Research" becomes two separate
+ * headings: "Basic Bodice (Sample)" (Part-like) and "Online Research"
+ * (Section-like), instead of one combined string.
+ */
+const splitHeadingFragments = (text) => {
+  const cleaned = String(text || "").trim();
+  if (!cleaned) return [];
+
+  const match = cleaned.match(/^(.*?\([^)]*\))\s*(.*)$/);
+  if (match) {
+    const first = match[1].trim();
+    const rest = match[2].trim();
+    return rest ? [first, rest] : [first];
+  }
+
+  return [cleaned];
+};
+
+/** Best-effort heading recovery from the text that appears before Question 1. */
+const extractPreambleHeading = (preamble) => {
+  const cleaned = preamble.replace(PAGE_BREAK_ARTIFACT_RE, "").trim();
+  if (!cleaned) return null;
+
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const last = sentences[sentences.length - 1] || "";
+  const wordCount = last.split(/\s+/).filter(Boolean).length;
+
+  if (
+    wordCount > 0 &&
+    wordCount <= 8 &&
+    !/assessment|prepared|question bank|instructions?/i.test(last)
+  ) {
+    return last.replace(/\.$/, "").trim();
+  }
+
+  return null;
+};
+
+const detectQuestionType = (questionText, options) => {
+  if (options.length >= 2) {
     return MULTI_SELECT_HINT_RE.test(questionText) ? "MULTIPLE_CHOICE" : "SINGLE_CHOICE";
   }
-  if (TRUE_FALSE_RE.test(questionText) || YES_NO_RE.test(questionText)) {
+  if (YES_EQUALS_RE.test(questionText) || TRUE_FALSE_RE.test(questionText) || YES_NO_SLASH_RE.test(questionText)) {
     return "YES_NO";
   }
   if (NUMBER_HINT_RE.test(questionText)) {
@@ -107,31 +295,27 @@ const detectQuestionType = (questionText, optionLines) => {
   return "TEXT";
 };
 
-const headingLabel = (keyword, id, rest) => {
-  const label = `${keyword} ${id}`.trim();
-  return rest ? `${label}: ${rest}`.trim() : label;
-};
-
 /**
  * Parses raw text of a question paper into a Part -> Section -> Question
  * tree (hasParts = true) or a flat Section -> Question list (hasParts =
- * false). No AI call — pure regex/heuristics.
+ * false). No AI call — pure regex/heuristics, robust to lost line breaks.
  */
 const parseStructuredQuestions = (rawText, hasParts) => {
-  const lines = String(rawText || "")
-    .split("\n")
-    .map(cleanLine)
-    .filter((line) => line.length > 0);
+  const normalized = String(rawText || "").replace(/\s+/g, " ").trim();
+  const boundaries = findQuestionBoundaries(normalized);
 
-  const parts = []; // used when hasParts = true
-  const flatSections = []; // used when hasParts = false
+  if (boundaries.length === 0) {
+    return hasParts ? [] : [];
+  }
+
+  const parts = [];
+  const flatSections = [];
 
   let currentPart = null;
   let currentSection = null;
-
-  let currentQuestion = null;
-  let bodyLines = [];
-  let optionLines = [];
+  let pendingHeadingQueue = splitHeadingFragments(
+    extractPreambleHeading(normalized.slice(0, boundaries[0].start)) || ""
+  );
 
   const findOrCreatePart = (name) => {
     let part = parts.find((p) => p.name.toLowerCase() === name.toLowerCase());
@@ -159,92 +343,63 @@ const parseStructuredQuestions = (rawText, hasParts) => {
     return currentPart.sections;
   };
 
-  const ensureCurrentSection = () => {
-    const sectionsArr = getActiveSectionsArray();
-    if (!currentSection || !sectionsArr.includes(currentSection)) {
+  const applyPendingHeadings = () => {
+    while (pendingHeadingQueue.length > 0) {
+      const heading = pendingHeadingQueue.shift();
+      if (!heading) continue;
+
+      if (hasParts) {
+        const partMatch = heading.match(PART_HEADING_RE);
+        const looksLikePart = Boolean(partMatch) || PART_LIKE_QUALIFIER_RE.test(heading);
+
+        if (looksLikePart) {
+          const partName = partMatch
+            ? headingLabel("Part", partMatch[1], partMatch[2])
+            : heading;
+          currentPart = findOrCreatePart(partName);
+          currentSection = null;
+          continue;
+        }
+      }
+
+      const sectionMatch = heading.match(SECTION_HEADING_RE);
+      const sectionName = sectionMatch
+        ? headingLabel("Section", sectionMatch[1], sectionMatch[2])
+        : heading;
+      const sectionsArr = getActiveSectionsArray();
+      currentSection = findOrCreateSectionIn(sectionsArr, sectionName);
+    }
+
+    if (!currentSection) {
+      const sectionsArr = getActiveSectionsArray();
       currentSection = findOrCreateSectionIn(sectionsArr, "General");
     }
-    return currentSection;
   };
 
-  const flushCurrentQuestion = () => {
-    if (!currentQuestion) return;
+  for (let i = 0; i < boundaries.length; i++) {
+    const start = boundaries[i].end;
+    const end = i + 1 < boundaries.length ? boundaries[i + 1].start : normalized.length;
+    const rawBlock = normalized.slice(start, end).trim();
 
-    const fullBody = [currentQuestion.firstLine, ...bodyLines].join(" ").trim();
-    const marks = extractMarks(fullBody);
-    const options = optionLines.map((opt) => opt.replace(OPTION_LINE_RE, "$2").trim());
-    const questionText = fullBody.replace(MARKS_RE, "").trim();
+    const { questionCore, options } = extractOptions(rawBlock);
+    const { questionText, maxPoints, trailingHeading } = extractMarksAndHeading(questionCore);
+
+    applyPendingHeadings();
 
     if (questionText) {
-      const section = ensureCurrentSection();
-      section.questions.push({
+      currentSection.questions.push({
         questionText,
-        questionType: detectQuestionType(fullBody, options),
+        questionType: detectQuestionType(questionText, options),
         options,
-        maxPoints: marks !== null ? marks : 1,
-        isRequired: !OPTIONAL_HINT_RE.test(fullBody),
+        maxPoints,
+        isRequired: !OPTIONAL_HINT_RE.test(questionText),
       });
     }
 
-    currentQuestion = null;
-    bodyLines = [];
-    optionLines = [];
-  };
-
-  for (const line of lines) {
-    if (hasParts) {
-      const partMatch = line.match(PART_HEADING_RE);
-      if (partMatch) {
-        flushCurrentQuestion();
-        currentPart = findOrCreatePart(headingLabel("Part", partMatch[1], partMatch[2]));
-        currentSection = null;
-        continue;
-      }
+    if (trailingHeading) {
+      pendingHeadingQueue.push(...splitHeadingFragments(trailingHeading));
     }
-
-    const sectionMatch = line.match(SECTION_HEADING_RE);
-    if (sectionMatch) {
-      flushCurrentQuestion();
-      const sectionsArr = getActiveSectionsArray();
-      currentSection = findOrCreateSectionIn(sectionsArr, headingLabel("Section", sectionMatch[1], sectionMatch[2]));
-      continue;
-    }
-
-    // If this assessment has no Parts, still treat a stray "Part X" line
-    // as a section-level boundary rather than losing it entirely.
-    if (!hasParts) {
-      const partAsSectionMatch = line.match(PART_HEADING_RE);
-      if (partAsSectionMatch) {
-        flushCurrentQuestion();
-        currentSection = findOrCreateSectionIn(
-          flatSections,
-          headingLabel("Part", partAsSectionMatch[1], partAsSectionMatch[2])
-        );
-        continue;
-      }
-    }
-
-    const questionMatch = line.match(QUESTION_START_RE);
-    if (questionMatch) {
-      flushCurrentQuestion();
-      currentQuestion = { number: questionMatch[1], firstLine: questionMatch[2] };
-      continue;
-    }
-
-    const optionMatch = line.match(OPTION_LINE_RE);
-    if (optionMatch && currentQuestion) {
-      optionLines.push(line);
-      continue;
-    }
-
-    if (currentQuestion) {
-      bodyLines.push(line);
-    }
-    // Lines before the first detected question number are ignored
-    // (typically paper title, instructions, student name fields, etc.)
   }
-
-  flushCurrentQuestion();
 
   if (hasParts) {
     return parts
@@ -433,12 +588,12 @@ exports.extractQuestions = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "No questions could be detected in this file. This free parser relies on numbered questions (e.g. \"1.\", \"Q1)\") and headings like \"Part A\" / \"Section 1\" — try a clearer file, a different format, or add questions manually.",
+          "No questions could be detected in this file. This free parser relies on numbered questions (e.g. \"1.\", \"Q1)\") — try a clearer file, a different format, or add questions manually.",
       });
     }
 
     warnings.push(
-      "Parts, Sections and Questions were auto-detected using free local parsing (no AI) based on headings and numbering — please review the structure before saving."
+      "Parts, Sections and Questions were auto-detected using free local parsing (no AI) based on headings, marks patterns and numbering — please review the structure before saving. Headings that don't explicitly say \"Part\" are grouped as Sections under a single Part."
     );
 
     return res.json({

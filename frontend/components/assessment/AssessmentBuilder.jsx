@@ -126,175 +126,57 @@ export default function AssessmentBuilder({
     useState(DEFAULT_QUESTION_FORM);
 
   // =========================================================
-  // SYNC INITIAL DATA
-
-// =========================================================
-// SYNC ASSESSMENT DATA
-// =========================================================
-
-useEffect(() => {
-  const nextParts = Array.isArray(assessment?.parts)
-    ? sortByOrder(assessment.parts)
-    : [];
-
-  let nextSections = [];
-
-  // ---------------------------------------------------------
-  // DIRECT SECTION MODE
-  // ---------------------------------------------------------
-
-  if (Array.isArray(assessment?.sections)) {
-    nextSections = [...assessment.sections];
-  }
-
-  // ---------------------------------------------------------
-  // PARTS MODE
-  // Backend response:
-  //
-  // assessment.parts[].sections[]
-  //
-  // Builder ko flat sections array chahiye.
-  // ---------------------------------------------------------
-
-  if (Array.isArray(assessment?.parts)) {
-    const nestedSections = assessment.parts.flatMap((part) => {
-      if (!Array.isArray(part?.sections)) {
-        return [];
-      }
-
-      return part.sections.map((section) => {
-        const partId =
-          section?.part?._id ||
-          section?.part?.id ||
-          section?.part ||
-          section?.partId ||
-          part?._id ||
-          null;
-
-        return {
-          ...section,
-
-          // Keep both forms so all existing helpers work
-          partId,
-          part: section?.part || part?._id || null,
-        };
-      });
-    });
-
-    nextSections = [
-      ...nextSections,
-      ...nestedSections,
-    ];
-  }
-
-  // ---------------------------------------------------------
-  // REMOVE DUPLICATE SECTIONS
-  // ---------------------------------------------------------
-
-  const uniqueSections = Array.from(
-    new Map(
-      nextSections
-        .filter((section) => section?._id)
-        .map((section) => [
-          String(section._id),
-          section,
-        ])
-    ).values()
-  );
-
-  // ---------------------------------------------------------
-  // SORT
-  // ---------------------------------------------------------
-
-  const sortedSections = sortByOrder(uniqueSections);
-
-  // ---------------------------------------------------------
-  // SET STATE
-  // ---------------------------------------------------------
-
-  setParts(nextParts);
-  setSections(sortedSections);
-
-  console.log("ASSESSMENT BUILDER SYNC:", {
-    hasParts: Boolean(assessment?.hasParts),
-    parts: nextParts,
-    sections: sortedSections,
-  });
-}, [
-  assessment?._id,
-  assessment?.hasParts,
-  assessment?.parts,
-  assessment?.sections,
-]);
-
-
+  // SYNC ASSESSMENT DATA
   // =========================================================
-  // LOAD ASSESSMENT
-  // =========================================================
-const loadAssessment = async () => {
-  try {
-    setLoading(true);
-    setError("");
 
-    const res = await api.getAssessment(
-      assessment._id
-    );
-
-    const data = res?.data;
-
-    if (!data) {
-      throw new Error("Assessment data not found");
-    }
-
-    // =====================================================
-    // PARTS
-    // =====================================================
-
-    const nextParts = Array.isArray(data.parts)
-      ? sortByOrder(data.parts)
+  useEffect(() => {
+    const nextParts = Array.isArray(assessment?.parts)
+      ? sortByOrder(assessment.parts)
       : [];
-
-    // =====================================================
-    // SECTIONS
-    // =====================================================
-    // Backend parts mode me sections ko:
-    // data.parts[].sections
-    // ke andar bhej raha hai.
-    //
-    // Direct mode me:
-    // data.sections
-    // ke andar bhej raha hai.
 
     let nextSections = [];
 
-    if (Array.isArray(data.sections)) {
-      nextSections = [...data.sections];
+    // ---------------------------------------------------------
+    // DIRECT SECTION MODE
+    // ---------------------------------------------------------
+
+    if (Array.isArray(assessment?.sections)) {
+      nextSections = [...assessment.sections];
     }
 
-    // Parts ke andar nested sections ko bhi
-    // flat sections array me convert karo
-    if (Array.isArray(data.parts)) {
-      const nestedSections = data.parts.flatMap(
-        (part) =>
-          Array.isArray(part.sections)
-            ? part.sections.map((section) => ({
-                ...section,
+    // ---------------------------------------------------------
+    // PARTS MODE
+    // Backend response:
+    //
+    // assessment.parts[].sections[]
+    //
+    // Builder ko flat sections array chahiye.
+    // ---------------------------------------------------------
 
-                // Agar backend ne part ko string diya hai
-                // to ensure karo ki section ke paas partId bhi ho
-                partId:
-                  section.part?._id ||
-                  section.part?.id ||
-                  section.part ||
-                  part._id,
+    if (Array.isArray(assessment?.parts)) {
+      const nestedSections = assessment.parts.flatMap((part) => {
+        if (!Array.isArray(part?.sections)) {
+          return [];
+        }
 
-                // Original part bhi preserve karo
-                part:
-                  section.part ||
-                  part._id,
-              }))
-            : []
-      );
+        return part.sections.map((section) => {
+          const partId =
+            section?.part?._id ||
+            section?.part?.id ||
+            section?.part ||
+            section?.partId ||
+            part?._id ||
+            null;
+
+          return {
+            ...section,
+
+            // Keep both forms so all existing helpers work
+            partId,
+            part: section?.part || part?._id || null,
+          };
+        });
+      });
 
       nextSections = [
         ...nextSections,
@@ -302,106 +184,221 @@ const loadAssessment = async () => {
       ];
     }
 
-    // Duplicate sections remove karo
+    // ---------------------------------------------------------
+    // REMOVE DUPLICATE SECTIONS
+    // ---------------------------------------------------------
+
     const uniqueSections = Array.from(
       new Map(
-        nextSections.map((section) => [
-          String(section._id),
-          section,
-        ])
+        nextSections
+          .filter((section) => section?._id)
+          .map((section) => [
+            String(section._id),
+            section,
+          ])
       ).values()
     );
 
-    const sortedSections =
-      sortByOrder(uniqueSections);
+    // ---------------------------------------------------------
+    // SORT
+    // ---------------------------------------------------------
 
-    // =====================================================
-    // UPDATE LOCAL STATE
-    // =====================================================
+    const sortedSections = sortByOrder(uniqueSections);
+
+    // ---------------------------------------------------------
+    // SET STATE
+    // ---------------------------------------------------------
 
     setParts(nextParts);
     setSections(sortedSections);
 
-    console.log(
-      "ASSESSMENT REFRESHED:",
-      {
-        parts: nextParts,
-        sections: sortedSections,
+    console.log("ASSESSMENT BUILDER SYNC:", {
+      hasParts: Boolean(assessment?.hasParts),
+      parts: nextParts,
+      sections: sortedSections,
+    });
+  }, [
+    assessment?._id,
+    assessment?.hasParts,
+    assessment?.parts,
+    assessment?.sections,
+  ]);
+
+
+  // =========================================================
+  // LOAD ASSESSMENT
+  // =========================================================
+  const loadAssessment = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await api.getAssessment(
+        assessment._id
+      );
+
+      const data = res?.data;
+
+      if (!data) {
+        throw new Error("Assessment data not found");
       }
-    );
 
-    // =====================================================
-    // PARENT REFRESH
-    // =====================================================
+      // =====================================================
+      // PARTS
+      // =====================================================
 
-    if (onUpdate) {
-      try {
-        await onUpdate();
-      } catch (parentError) {
-        console.warn(
-          "Parent assessment refresh failed:",
-          parentError
+      const nextParts = Array.isArray(data.parts)
+        ? sortByOrder(data.parts)
+        : [];
+
+      // =====================================================
+      // SECTIONS
+      // =====================================================
+      // Backend parts mode me sections ko:
+      // data.parts[].sections
+      // ke andar bhej raha hai.
+      //
+      // Direct mode me:
+      // data.sections
+      // ke andar bhej raha hai.
+
+      let nextSections = [];
+
+      if (Array.isArray(data.sections)) {
+        nextSections = [...data.sections];
+      }
+
+      // Parts ke andar nested sections ko bhi
+      // flat sections array me convert karo
+      if (Array.isArray(data.parts)) {
+        const nestedSections = data.parts.flatMap(
+          (part) =>
+            Array.isArray(part.sections)
+              ? part.sections.map((section) => ({
+                  ...section,
+
+                  // Agar backend ne part ko string diya hai
+                  // to ensure karo ki section ke paas partId bhi ho
+                  partId:
+                    section.part?._id ||
+                    section.part?.id ||
+                    section.part ||
+                    part._id,
+
+                  // Original part bhi preserve karo
+                  part:
+                    section.part ||
+                    part._id,
+                }))
+              : []
         );
+
+        nextSections = [
+          ...nextSections,
+          ...nestedSections,
+        ];
       }
+
+      // Duplicate sections remove karo
+      const uniqueSections = Array.from(
+        new Map(
+          nextSections.map((section) => [
+            String(section._id),
+            section,
+          ])
+        ).values()
+      );
+
+      const sortedSections =
+        sortByOrder(uniqueSections);
+
+      // =====================================================
+      // UPDATE LOCAL STATE
+      // =====================================================
+
+      setParts(nextParts);
+      setSections(sortedSections);
+
+      console.log(
+        "ASSESSMENT REFRESHED:",
+        {
+          parts: nextParts,
+          sections: sortedSections,
+        }
+      );
+
+      // =====================================================
+      // PARENT REFRESH
+      // =====================================================
+
+      if (onUpdate) {
+        try {
+          await onUpdate();
+        } catch (parentError) {
+          console.warn(
+            "Parent assessment refresh failed:",
+            parentError
+          );
+        }
+      }
+    } catch (err) {
+      console.error(
+        "ASSESSMENT BUILDER LOAD ERROR:",
+        err
+      );
+
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to refresh assessment";
+
+      setError(message);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(
-      "ASSESSMENT BUILDER LOAD ERROR:",
-      err
-    );
-
-    const message =
-      err?.response?.data?.message ||
-      err?.response?.data?.error ||
-      err?.message ||
-      "Failed to refresh assessment";
-
-    setError(message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // =========================================================
   // HELPERS
   // =========================================================
-function sortByOrder(items = []) {
-  return [...items].sort(
-    (a, b) =>
-      Number(a?.displayOrder || 0) -
-      Number(b?.displayOrder || 0),
-  );
-}
+  function sortByOrder(items = []) {
+    return [...items].sort(
+      (a, b) =>
+        Number(a?.displayOrder || 0) -
+        Number(b?.displayOrder || 0),
+    );
+  }
 
-const getSectionPartId = (section) => {
-  if (!section) return null;
+  const getSectionPartId = (section) => {
+    if (!section) return null;
 
-  return (
-    section.part?._id ||
-    section.part?.id ||
-    section.partId ||
-    section.part ||
-    null
-  );
-};
+    return (
+      section.part?._id ||
+      section.part?.id ||
+      section.partId ||
+      section.part ||
+      null
+    );
+  };
 
-const getSectionsForPart = (partId) => {
-  return sortByOrder(
-    sections.filter(
-      (section) =>
-        String(getSectionPartId(section)) ===
-        String(partId),
-    ),
-  );
-};
+  const getSectionsForPart = (partId) => {
+    return sortByOrder(
+      sections.filter(
+        (section) =>
+          String(getSectionPartId(section)) ===
+          String(partId),
+      ),
+    );
+  };
 
-const getDirectSections = () => {
-  return sortByOrder(
-    sections.filter(
-      (section) => !getSectionPartId(section),
-    ),
-  );
-};
+  const getDirectSections = () => {
+    return sortByOrder(
+      sections.filter(
+        (section) => !getSectionPartId(section),
+      ),
+    );
+  };
 
   const getQuestionsCount = (section) => {
     return (
@@ -417,24 +414,24 @@ const getDirectSections = () => {
     );
   };
 
-    const getPartMarks = (part) => {
-      const nestedSections =
-        getSectionsForPart(part._id);
+  const getPartMarks = (part) => {
+    const nestedSections =
+      getSectionsForPart(part._id);
 
-      if (
-        nestedSections.length > 0
-      ) {
-        return nestedSections.reduce(
-          (sum, section) =>
-            sum + getSectionMarks(section),
-          0,
-        );
-      }
-
-      return Number(
-        part?.totalMarks || 0,
+    if (
+      nestedSections.length > 0
+    ) {
+      return nestedSections.reduce(
+        (sum, section) =>
+          sum + getSectionMarks(section),
+        0,
       );
-    };
+    }
+
+    return Number(
+      part?.totalMarks || 0,
+    );
+  };
 
   // =========================================================
   // PART DIALOG
@@ -627,47 +624,47 @@ const getDirectSections = () => {
   // =========================================================
   // SECTION DIALOG
   // =========================================================
-const openSectionDialog = (
-  section = null,
-  partId = null
-) => {
-  setError("");
+  const openSectionDialog = (
+    section = null,
+    partId = null
+  ) => {
+    setError("");
 
-  if (section) {
-    setEditingSection(section);
+    if (section) {
+      setEditingSection(section);
 
-    const sectionPartId =
-      getSectionPartId(section);
+      const sectionPartId =
+        getSectionPartId(section);
 
-    setActivePartId(sectionPartId);
+      setActivePartId(sectionPartId);
 
-    setSectionForm({
-      name: section.name || "",
-      description: section.description || "",
-      displayOrder:
-        Number(section.displayOrder || 1),
-    });
-  } else {
-    setEditingSection(null);
+      setSectionForm({
+        name: section.name || "",
+        description: section.description || "",
+        displayOrder:
+          Number(section.displayOrder || 1),
+      });
+    } else {
+      setEditingSection(null);
 
-    setActivePartId(
-      hasParts ? partId : null
-    );
+      setActivePartId(
+        hasParts ? partId : null
+      );
 
-    const existingSections = hasParts
-      ? getSectionsForPart(partId)
-      : getDirectSections();
+      const existingSections = hasParts
+        ? getSectionsForPart(partId)
+        : getDirectSections();
 
-    setSectionForm({
-      name: "",
-      description: "",
-      displayOrder:
-        existingSections.length + 1,
-    });
-  }
+      setSectionForm({
+        name: "",
+        description: "",
+        displayOrder:
+          existingSections.length + 1,
+      });
+    }
 
-  setSectionDialog(true);
-};
+    setSectionDialog(true);
+  };
 
   const closeSectionDialog = () => {
     setSectionDialog(false);
@@ -677,141 +674,141 @@ const openSectionDialog = (
       DEFAULT_SECTION_FORM,
     );
   };
-const handleSaveSection = async () => {
-  if (saving) return;
+  const handleSaveSection = async () => {
+    if (saving) return;
 
-  try {
-    setSaving(true);
-    setError("");
+    try {
+      setSaving(true);
+      setError("");
 
-    // ---------------------------------------------
-    // VALIDATION
-    // ---------------------------------------------
+      // ---------------------------------------------
+      // VALIDATION
+      // ---------------------------------------------
 
-    const sectionName = String(
-      sectionForm.name || ""
-    ).trim();
+      const sectionName = String(
+        sectionForm.name || ""
+      ).trim();
 
-    if (!sectionName) {
-      setError("Section name is required.");
-      return;
-    }
-
-    const displayOrder =
-      Number(sectionForm.displayOrder) || 1;
-
-    // ---------------------------------------------
-    // PART ID
-    // ---------------------------------------------
-
-    let partId = null;
-
-    if (hasParts) {
-      partId =
-        activePartId ||
-        editingSection?.part?._id ||
-        editingSection?.part?.id ||
-        editingSection?.partId ||
-        editingSection?.part ||
-        null;
-
-      if (!partId) {
-        setError(
-          "Please select a Part before creating the section."
-        );
+      if (!sectionName) {
+        setError("Section name is required.");
         return;
       }
 
-      const selectedPart = parts.find(
-        (part) =>
-          String(part._id) === String(partId)
-      );
+      const displayOrder =
+        Number(sectionForm.displayOrder) || 1;
 
-      if (!selectedPart) {
-        setError(
-          "Selected Part is invalid. Please refresh the assessment and try again."
+      // ---------------------------------------------
+      // PART ID
+      // ---------------------------------------------
+
+      let partId = null;
+
+      if (hasParts) {
+        partId =
+          activePartId ||
+          editingSection?.part?._id ||
+          editingSection?.part?.id ||
+          editingSection?.partId ||
+          editingSection?.part ||
+          null;
+
+        if (!partId) {
+          setError(
+            "Please select a Part before creating the section."
+          );
+          return;
+        }
+
+        const selectedPart = parts.find(
+          (part) =>
+            String(part._id) === String(partId)
         );
-        return;
+
+        if (!selectedPart) {
+          setError(
+            "Selected Part is invalid. Please refresh the assessment and try again."
+          );
+          return;
+        }
       }
-    }
 
-    // ---------------------------------------------
-    // PAYLOAD
-    // ---------------------------------------------
+      // ---------------------------------------------
+      // PAYLOAD
+      // ---------------------------------------------
 
-    const payload = {
-      name: sectionName,
-      description: String(
-        sectionForm.description || ""
-      ).trim(),
-      displayOrder,
-    };
+      const payload = {
+        name: sectionName,
+        description: String(
+          sectionForm.description || ""
+        ).trim(),
+        displayOrder,
+      };
 
-    if (hasParts) {
-      payload.partId = partId;
-    }
-
-    console.log(
-      "CREATE / UPDATE SECTION PAYLOAD:",
-      {
-        assessmentId: assessment._id,
-        sectionId: editingSection?._id || null,
-        payload,
+      if (hasParts) {
+        payload.partId = partId;
       }
-    );
 
-    // ---------------------------------------------
-    // CREATE / UPDATE
-    // ---------------------------------------------
-
-    let response;
-
-    if (editingSection) {
-      response = await api.updateSection(
-        editingSection._id,
-        payload
+      console.log(
+        "CREATE / UPDATE SECTION PAYLOAD:",
+        {
+          assessmentId: assessment._id,
+          sectionId: editingSection?._id || null,
+          payload,
+        }
       );
-    } else {
-      response = await api.createSection(
-        assessment._id,
-        payload
+
+      // ---------------------------------------------
+      // CREATE / UPDATE
+      // ---------------------------------------------
+
+      let response;
+
+      if (editingSection) {
+        response = await api.updateSection(
+          editingSection._id,
+          payload
+        );
+      } else {
+        response = await api.createSection(
+          assessment._id,
+          payload
+        );
+      }
+
+      console.log(
+        "SECTION SAVE RESPONSE:",
+        response
       );
+
+      // ---------------------------------------------
+      // CLOSE DIALOG
+      // ---------------------------------------------
+
+      closeSectionDialog();
+
+      // ---------------------------------------------
+      // REFRESH STRUCTURE
+      // ---------------------------------------------
+
+      await loadAssessment();
+
+    } catch (err) {
+      console.error(
+        "SAVE SECTION ERROR:",
+        err
+      );
+
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to save section";
+
+      setError(message);
+    } finally {
+      setSaving(false);
     }
-
-    console.log(
-      "SECTION SAVE RESPONSE:",
-      response
-    );
-
-    // ---------------------------------------------
-    // CLOSE DIALOG
-    // ---------------------------------------------
-
-    closeSectionDialog();
-
-    // ---------------------------------------------
-    // REFRESH STRUCTURE
-    // ---------------------------------------------
-
-    await loadAssessment();
-
-  } catch (err) {
-    console.error(
-      "SAVE SECTION ERROR:",
-      err
-    );
-
-    const message =
-      err?.response?.data?.message ||
-      err?.response?.data?.error ||
-      err?.message ||
-      "Failed to save section";
-
-    setError(message);
-  } finally {
-    setSaving(false);
-  }
-};
+  };
 
   // =========================================================
   // DELETE SECTION
@@ -860,11 +857,11 @@ const handleSaveSection = async () => {
     section,
     direction,
   ) => {
-   const group = hasParts
-  ? getSectionsForPart(
-      getSectionPartId(section),
-    )
-  : getDirectSections();
+    const group = hasParts
+      ? getSectionsForPart(
+          getSectionPartId(section),
+        )
+      : getDirectSections();
 
     const index = group.findIndex(
       (item) =>
@@ -975,9 +972,9 @@ const handleSaveSection = async () => {
     }
 
     if (section) {
-     setActivePartId(
-  getSectionPartId(section)
-);
+      setActivePartId(
+        getSectionPartId(section)
+      );
     }
 
     setQuestionDialog(true);
@@ -1086,12 +1083,6 @@ const handleSaveSection = async () => {
         }
       }
 
-      const section = sections.find(
-        (item) =>
-          String(item._id) ===
-          String(activeSectionId),
-      );
-
       const payload = {
         questionText:
           questionForm.questionText.trim(),
@@ -1104,12 +1095,12 @@ const handleSaveSection = async () => {
         options,
       };
 
-      if (hasParts) {
-      payload.partId =
-  getSectionPartId(section) ||
-  activePartId ||
-  null;
-      }
+      // NOTE: `partId` is intentionally NOT sent here. The backend
+      // derives a question's Part from its Section — sending partId
+      // directly is rejected with "partId cannot be changed
+      // independently. Change the Section instead." If a question
+      // needs to move to a different Part, add/move it under a
+      // Section that belongs to that Part instead.
 
       if (editingQuestion) {
         await api.updateQuestion(
@@ -1789,7 +1780,7 @@ const handleSaveSection = async () => {
                   hasParts
                     ? "secondary"
                     : "primary"
-                  }
+                }
                 variant="outlined"
               />
             </Box>
@@ -2789,8 +2780,6 @@ const handleSaveSection = async () => {
         open={importDialog}
         onClose={() => setImportDialog(false)}
         assessment={assessment}
-        parts={parts}
-        sections={sections}
         onImported={loadAssessment}
       />
 
