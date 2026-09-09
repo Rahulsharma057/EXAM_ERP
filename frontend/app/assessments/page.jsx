@@ -31,7 +31,7 @@ import {
   Tooltip,
   CircularProgress,
   Divider,
-  TableFooter
+  TableFooter,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -79,8 +79,7 @@ export default function AssessmentsPage() {
 
   const [duplicateDialog, setDuplicateDialog] = useState(false);
 
-  const [selectedAssessment, setSelectedAssessment] =
-    useState(null);
+  const [selectedAssessment, setSelectedAssessment] = useState(null);
 
   const [batches, setBatches] = useState([]);
 
@@ -153,9 +152,7 @@ export default function AssessmentsPage() {
 
       console.log("AVAILABLE BATCHES RESPONSE:", res);
 
-      const availableBatches = Array.isArray(res?.data)
-        ? res.data
-        : [];
+      const availableBatches = Array.isArray(res?.data) ? res.data : [];
 
       setBatches(availableBatches);
     } catch (error) {
@@ -163,10 +160,7 @@ export default function AssessmentsPage() {
 
       setBatches([]);
 
-      setDuplicateError(
-        error?.message ||
-          "Failed to load available batches"
-      );
+      setDuplicateError(error?.message || "Failed to load available batches");
     } finally {
       setLoadingBatches(false);
     }
@@ -182,13 +176,10 @@ export default function AssessmentsPage() {
     }
 
     const currentBatchId =
-      selectedAssessment?.batch?._id ||
-      selectedAssessment?.batch ||
-      "";
+      selectedAssessment?.batch?._id || selectedAssessment?.batch || "";
 
     return batches.filter(
-      (batch) =>
-        String(batch?._id) !== String(currentBatchId)
+      (batch) => String(batch?._id) !== String(currentBatchId),
     );
   }, [batches, selectedAssessment]);
 
@@ -201,10 +192,7 @@ export default function AssessmentsPage() {
       await api.publishAssessment(id);
       await load();
     } catch (error) {
-      alert(
-        error?.message ||
-          "Failed to publish assessment"
-      );
+      alert(error?.message || "Failed to publish assessment");
     }
   };
 
@@ -217,26 +205,18 @@ export default function AssessmentsPage() {
 
     setDuplicateError("");
 
-    setDuplicateName(
-      `${assessment?.name || "Assessment"} (Copy)`
-    );
+    setDuplicateName(`${assessment?.name || "Assessment"} (Copy)`);
 
     const originalCode =
       assessment?.code ||
-      String(
-        assessment?.name || "ASSESSMENT"
-      )
+      String(assessment?.name || "ASSESSMENT")
         .replace(/\s+/g, "_")
         .toUpperCase();
 
     setDuplicateCode(`${originalCode}_COPY`);
 
     // Current week + 1
-    setTargetWeek(
-      String(
-        Number(assessment?.weekNumber || 0) + 1
-      )
-    );
+    setTargetWeek(String(Number(assessment?.weekNumber || 0) + 1));
 
     setTargetBatch("");
 
@@ -254,42 +234,29 @@ export default function AssessmentsPage() {
 
   const handleDuplicate = async () => {
     if (!selectedAssessment) {
-      setDuplicateError(
-        "Assessment not selected"
-      );
+      setDuplicateError("Assessment not selected");
       return;
     }
 
     if (!targetBatch) {
-      setDuplicateError(
-        "Please select the target batch"
-      );
+      setDuplicateError("Please select the target batch");
       return;
     }
 
     const weekNumber = parseInt(targetWeek, 10);
 
-    if (
-      !Number.isInteger(weekNumber) ||
-      weekNumber <= 0
-    ) {
-      setDuplicateError(
-        "Please enter a valid target week number"
-      );
+    if (!Number.isInteger(weekNumber) || weekNumber <= 0) {
+      setDuplicateError("Please enter a valid target week number");
       return;
     }
 
     if (!duplicateName.trim()) {
-      setDuplicateError(
-        "Assessment name is required"
-      );
+      setDuplicateError("Assessment name is required");
       return;
     }
 
     if (!duplicateCode.trim()) {
-      setDuplicateError(
-        "Assessment code is required"
-      );
+      setDuplicateError("Assessment code is required");
       return;
     }
 
@@ -300,29 +267,21 @@ export default function AssessmentsPage() {
     // =====================================================
 
     const selectedBatch = batches.find(
-      (batch) =>
-        String(batch?._id) === String(targetBatch)
+      (batch) => String(batch?._id) === String(targetBatch),
     );
 
     if (!selectedBatch) {
-      setDuplicateError(
-        "Selected batch is not available for your account"
-      );
+      setDuplicateError("Selected batch is not available for your account");
       return;
     }
 
     // Current batch cannot be selected
     const currentBatchId =
-      selectedAssessment?.batch?._id ||
-      selectedAssessment?.batch ||
-      "";
+      selectedAssessment?.batch?._id || selectedAssessment?.batch || "";
 
-    if (
-      String(selectedBatch._id) ===
-      String(currentBatchId)
-    ) {
+    if (String(selectedBatch._id) === String(currentBatchId)) {
       setDuplicateError(
-        "Target batch must be different from the current batch"
+        "Target batch must be different from the current batch",
       );
       return;
     }
@@ -337,36 +296,25 @@ export default function AssessmentsPage() {
        * Backend derives hierarchy from targetBatch.
        */
 
-      await api.duplicateAssessment(
-        selectedAssessment._id,
-        {
-          newName: duplicateName.trim(),
+      await api.duplicateAssessment(selectedAssessment._id, {
+        newName: duplicateName.trim(),
 
-          newCode: duplicateCode.trim(),
+        newCode: duplicateCode.trim(),
 
-          newWeekNumber: weekNumber,
+        newWeekNumber: weekNumber,
 
-          targetBatch: selectedBatch._id,
-        }
-      );
+        targetBatch: selectedBatch._id,
+      });
 
       closeDuplicateDialog();
 
       await load();
 
-      alert(
-        "Assessment duplicated successfully"
-      );
+      alert("Assessment duplicated successfully");
     } catch (error) {
-      console.error(
-        "DUPLICATE ASSESSMENT ERROR:",
-        error
-      );
+      console.error("DUPLICATE ASSESSMENT ERROR:", error);
 
-      setDuplicateError(
-        error?.message ||
-          "Failed to duplicate assessment"
-      );
+      setDuplicateError(error?.message || "Failed to duplicate assessment");
     } finally {
       setDuplicating(false);
     }
@@ -399,11 +347,7 @@ export default function AssessmentsPage() {
   // =========================================================
 
   const handleDelete = async (id) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this draft assessment?"
-      )
-    ) {
+    if (!confirm("Are you sure you want to delete this draft assessment?")) {
       return;
     }
 
@@ -411,10 +355,7 @@ export default function AssessmentsPage() {
       await api.deleteAssessment(id);
       await load();
     } catch (error) {
-      alert(
-        error?.message ||
-          "Failed to delete assessment"
-      );
+      alert(error?.message || "Failed to delete assessment");
     }
   };
 
@@ -442,26 +383,18 @@ export default function AssessmentsPage() {
           justifyContent: "space-between",
           alignItems: "center",
           mb: 3,
-          m:3,
+          m: 3,
           gap: 2,
           flexWrap: "wrap",
         }}
       >
         <Box>
-          <Typography
-            variant="h4"
-            fontWeight={700}
-          >
+          <Typography variant="h4" fontWeight={700}>
             Assessment Management
           </Typography>
 
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mt: 0.5 }}
-          >
-            Create, manage, publish and duplicate
-            weekly assessments
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Create, manage, publish and duplicate weekly assessments
           </Typography>
         </Box>
 
@@ -469,7 +402,7 @@ export default function AssessmentsPage() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleCreateAssessment}
-          sx={{bgcolor:"rgb(43, 45, 156)"}}
+          sx={{ bgcolor: "rgb(43, 45, 156)" }}
         >
           Create Assessment
         </Button>
@@ -482,13 +415,10 @@ export default function AssessmentsPage() {
       <Paper
         sx={{
           p: 2,
-          m: 3,
+          m: 2,
         }}
       >
-        <Grid
-          container
-          spacing={2}
-        >
+        <Grid container spacing={2}>
           <Grid item xs={12}>
             <HierarchyFilter
               onChange={(value) => {
@@ -517,716 +447,693 @@ export default function AssessmentsPage() {
       {/* =====================================================
           TABLE
       ===================================================== */}
-<TableContainer
-  component={Paper}
-  sx={{
-    mx: { xs: 0, sm: 2 },
-    mt: 2,
-    width: { xs: "100%", sm: "calc(100% - 32px)" },
-    maxWidth: "100%",
-    borderRadius: 3,
-    border: "1px solid #E2E8F0",
-    boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
-    overflowX: "auto",
-    overflowY: "hidden",
-  }}
->
-  <Table
-    size="small"
-    sx={{
-      width: "100%",
-      minWidth: { xs: 900, md: "100%" },
-      tableLayout: "auto",
-
-      "& .MuiTableCell-root": {
-        borderColor: "#E8EDF3",
-        px: { xs: 1, sm: 1.5 },
-      },
-    }}
-  >
-    {/* =====================================================
-        TABLE HEADER
-    ===================================================== */}
-    <TableHead>
-      <TableRow
+      <TableContainer
+        component={Paper}
         sx={{
-          background:
-            "linear-gradient(90deg, #F5F9FF 0%, #FFFFFF 100%)",
+          mx: { xs: 0, sm: 2 },
+          mt: 2,
+          width: { xs: "100%", sm: "calc(100% - 32px)" },
+          maxWidth: "100%",
+          borderRadius: 1,
+          border: "1px solid #E2E8F0",
+          boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
+          overflowX: "auto",
+          overflowY: "hidden",
         }}
       >
-        <TableCell
+        <Table
+          size="small"
           sx={{
-            fontWeight: 800,
-            color: "#172033",
-            py: 1.8,
-            whiteSpace: "nowrap",
+            width: "100%",
+            minWidth: { xs: 900, md: "100%" },
+            tableLayout: "auto",
+
+            "& .MuiTableCell-root": {
+              borderColor: "#E8EDF3",
+              px: { xs: 1, sm: 1.5 },
+            },
           }}
         >
-          Assessment
-        </TableCell>
-
-        <TableCell
-          sx={{
-            fontWeight: 800,
-            color: "#172033",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Week
-        </TableCell>
-
-        <TableCell
-          sx={{
-            fontWeight: 800,
-            color: "#172033",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Batch
-        </TableCell>
-
-        <TableCell
-          sx={{
-            fontWeight: 800,
-            color: "#172033",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Status
-        </TableCell>
-
-        <TableCell
-          sx={{
-            fontWeight: 800,
-            color: "#172033",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Total Marks
-        </TableCell>
-
-        <TableCell
-          align="right"
-          sx={{
-            fontWeight: 800,
-            color: "#172033",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Actions
-        </TableCell>
-      </TableRow>
-    </TableHead>
-
-    {/* =====================================================
-        TABLE BODY
+          {/* =====================================================
+        TABLE HEADER
     ===================================================== */}
-    <TableBody>
-      {loading ? (
-        <TableRow>
-          <TableCell
-            colSpan={6}
-            align="center"
+          <TableHead
             sx={{
-              py: 7,
-              borderBottom: "none",
-            }}
-          >
-            <CircularProgress
-              size={30}
-              thickness={4}
-              sx={{
-                color: "#1565C0",
-              }}
-            />
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{
-                mt: 1.5,
-                fontWeight: 600,
-              }}
-            >
-              Loading assessments...
-            </Typography>
-          </TableCell>
-        </TableRow>
-      ) : assessments.length === 0 ? (
-        <TableRow>
-          <TableCell
-            colSpan={6}
-            align="center"
-            sx={{
-              py: 8,
-              borderBottom: "none",
-            }}
-          >
-            <Box
-              sx={{
-                width: 64,
-                height: 64,
-                mx: "auto",
-                mb: 2,
-                borderRadius: 2.5,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#E3F2FD",
-                color: "#1565C0",
-              }}
-            >
-              <AssessmentIcon
-                sx={{
-                  fontSize: 32,
-                }}
-              />
-            </Box>
-
-            <Typography
-              variant="h6"
-              fontWeight={750}
-              sx={{
-                color: "#172033",
-              }}
-            >
-              No assessments found
-            </Typography>
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{
-                mt: 0.6,
-              }}
-            >
-              There are no assessments matching your
-              current filters.
-            </Typography>
-          </TableCell>
-        </TableRow>
-      ) : (
-        assessments.map((a) => (
-          <TableRow
-            key={a._id}
-            hover
-            sx={{
-              transition: "background-color 0.2s ease",
-
-              "&:hover": {
-                backgroundColor: "#F8FBFF",
-              },
-
-              "&:last-child td": {
-                borderBottom: 0,
+              backgroundColor: "#0D47A1",
+              "& .MuiTableCell-root": {
+                backgroundColor: "#0D47A1",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                fontSize: "0.8rem",
+                borderBottom: "1px solid #0A3A82",
               },
             }}
           >
-            {/* =================================================
-                NAME
-            ================================================= */}
-            <TableCell>
-              <Box
+            <TableRow
+              sx={{
+                background: "linear-gradient(90deg, #F5F9FF 0%, #FFFFFF 100%)",
+              }}
+            >
+              <TableCell
+                align="center"
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.2,
-                  minWidth: 180,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    flexShrink: 0,
-                    borderRadius: 2,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "#E3F2FD",
-                    color: "#1565C0",
-                  }}
-                >
-                  <AssessmentIcon
-                    fontSize="small"
-                  />
-                </Box>
-
-                <Box
-                  sx={{
-                    minWidth: 0,
-                  }}
-                >
-                  <Typography
-                    fontWeight={750}
-                    sx={{
-                      color: "#172033",
-                      maxWidth: 250,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {a.name || "Untitled Assessment"}
-                  </Typography>
-
-                  {a.code && (
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#64748B",
-                        display: "block",
-                        mt: 0.25,
-                      }}
-                    >
-                      {a.code}
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-            </TableCell>
-
-            {/* =================================================
-                WEEK
-            ================================================= */}
-            <TableCell>
-              <Chip
-                size="small"
-                label={`Week ${a.weekNumber ?? "-"}`}
-                sx={{
-                  height: 28,
-                  borderRadius: 1.5,
-                  backgroundColor: "#F3E5F5",
-                  color: "#7B1FA2",
-                  border: "1px solid #E1BEE7",
-                  fontWeight: 750,
-                  fontSize: "0.72rem",
-                }}
-              />
-            </TableCell>
-
-            {/* =================================================
-                BATCH
-            ================================================= */}
-            <TableCell>
-              <Box
-                sx={{
-                  minWidth: 130,
-                }}
-              >
-                <Typography
-                  variant="body2"
-                  fontWeight={650}
-                  sx={{
-                    color: "#172033",
-                    maxWidth: 180,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {a.batch?.name || "-"}
-                </Typography>
-
-                {a.course?.name && (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#64748B",
-                      display: "block",
-                      mt: 0.25,
-                      maxWidth: 180,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {a.course.name}
-                  </Typography>
-                )}
-              </Box>
-            </TableCell>
-
-            {/* =================================================
-                STATUS
-            ================================================= */}
-            <TableCell>
-              <Chip
-                size="small"
-                label={a.status || "UNKNOWN"}
-                sx={{
-                  height: 28,
-                  borderRadius: 1.5,
-                  fontWeight: 750,
-                  fontSize: "0.72rem",
-                  border: "1px solid",
-
-                  ...(a.status === "PUBLISHED"
-                    ? {
-                        backgroundColor: "#E8F5E9",
-                        color: "#2E7D32",
-                        borderColor: "#A5D6A7",
-                      }
-                    : a.status === "DRAFT"
-                    ? {
-                        backgroundColor: "#F1F5F9",
-                        color: "#475569",
-                        borderColor: "#CBD5E1",
-                      }
-                    : a.status === "SCHEDULED"
-                    ? {
-                        backgroundColor: "#E3F2FD",
-                        color: "#1565C0",
-                        borderColor: "#90CAF9",
-                      }
-                    : a.status === "CLOSED"
-                    ? {
-                        backgroundColor: "#FFEBEE",
-                        color: "#D32F2F",
-                        borderColor: "#EF9A9A",
-                      }
-                    : a.status === "ARCHIVED"
-                    ? {
-                        backgroundColor: "#FFF3E0",
-                        color: "#E65100",
-                        borderColor: "#FFCC80",
-                      }
-                    : {
-                        backgroundColor: "#F8FAFC",
-                        color: "#64748B",
-                        borderColor: "#CBD5E1",
-                      }),
-                }}
-              />
-            </TableCell>
-
-            {/* =================================================
-                TOTAL MARKS
-            ================================================= */}
-            <TableCell>
-              <Box>
-                <Typography
-                  fontWeight={800}
-                  sx={{
-                    color: "#172033",
-                  }}
-                >
-                  {a.totalMarks || 0}
-                </Typography>
-
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "#64748B",
-                  }}
-                >
-                  Total marks
-                </Typography>
-              </Box>
-            </TableCell>
-
-            {/* =================================================
-                ACTIONS
-            ================================================= */}
-            <TableCell align="right">
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  alignItems: "center",
-                  gap: 0.2,
+                  fontWeight: 800,
+                  color: "#172033",
+                  py: 1.8,
                   whiteSpace: "nowrap",
                 }}
               >
-                {/* VIEW */}
-                <Tooltip title="View Assessment">
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      router.push(
-                        `/assessments/${a._id}`
-                      )
-                    }
+                Assessment
+              </TableCell>
+
+              <TableCell
+                align="center"
+                sx={{
+                  fontWeight: 800,
+                  color: "#172033",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Week
+              </TableCell>
+
+              <TableCell
+                align="center"
+                sx={{
+                  fontWeight: 800,
+                  color: "#172033",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Batch
+              </TableCell>
+
+              <TableCell
+                align="center"
+                sx={{
+                  fontWeight: 800,
+                  color: "#172033",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Status
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 800,
+                  color: "#172033",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Total Marks
+              </TableCell>
+
+              <TableCell
+                align="center"
+                sx={{
+                  fontWeight: 800,
+                  color: "#172033",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Actions
+              </TableCell>
+            </TableRow>
+          </TableHead>
+
+          {/* =====================================================
+        TABLE BODY
+    ===================================================== */}
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  align="center"
+                  sx={{
+                    py: 7,
+                    borderBottom: "none",
+                  }}
+                >
+                  <CircularProgress
+                    size={30}
+                    thickness={4}
                     sx={{
-                      width: 32,
-                      height: 32,
                       color: "#1565C0",
+                    }}
+                  />
 
-                      "&:hover": {
-                        backgroundColor: "#E3F2FD",
-                      },
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      mt: 1.5,
+                      fontWeight: 600,
                     }}
                   >
-                    <VisibilityIcon
-                      fontSize="small"
-                    />
-                  </IconButton>
-                </Tooltip>
-
-                {/* EDIT */}
-                {a.status === "DRAFT" && (
-                  <Tooltip title="Edit Assessment">
-                    <IconButton
-                      size="small"
-                      onClick={() =>
-                        router.push(
-                          `/assessments/${a._id}/edit`
-                        )
-                      }
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        color: "#ED6C02",
-
-                        "&:hover": {
-                          backgroundColor: "#FFF3E0",
-                        },
-                      }}
-                    >
-                      <EditIcon
-                        fontSize="small"
-                      />
-                    </IconButton>
-                  </Tooltip>
-                )}
-
-                {/* DUPLICATE */}
-                <Tooltip title="Duplicate Assessment">
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      openDuplicateDialog(a)
-                    }
+                    Loading assessments...
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : assessments.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  align="center"
+                  sx={{
+                    py: 8,
+                    borderBottom: "none",
+                  }}
+                >
+                  <Box
                     sx={{
-                      width: 32,
-                      height: 32,
-                      color: "#7B1FA2",
-
-                      "&:hover": {
-                        backgroundColor: "#F3E5F5",
-                      },
-                    }}
-                  >
-                    <FileCopyIcon
-                      fontSize="small"
-                    />
-                  </IconButton>
-                </Tooltip>
-
-                {/* PUBLISH */}
-                {a.status === "DRAFT" && (
-                  <Tooltip title="Publish Assessment">
-                    <IconButton
-                      size="small"
-                      onClick={() =>
-                        handlePublish(a._id)
-                      }
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        color: "#2E7D32",
-
-                        "&:hover": {
-                          backgroundColor: "#E8F5E9",
-                        },
-                      }}
-                    >
-                      <PublishIcon
-                        fontSize="small"
-                      />
-                    </IconButton>
-                  </Tooltip>
-                )}
-
-                {/* ENTER MARKS */}
-                {(a.status === "PUBLISHED" ||
-                  a.status === "CLOSED") && (
-                  <Tooltip title="Enter Marks">
-                    <IconButton
-                      size="small"
-                      onClick={() =>
-                        router.push(
-                          `/assessments/${a._id}/marks`
-                        )
-                      }
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        color: "#1565C0",
-
-                        "&:hover": {
-                          backgroundColor: "#E3F2FD",
-                        },
-                      }}
-                    >
-                      <GradingIcon
-                        fontSize="small"
-                      />
-                    </IconButton>
-                  </Tooltip>
-                )}
-
-                {/* RESULTS */}
-                <Tooltip title="View Results">
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      router.push(
-                        `/assessments/${a._id}/results`
-                      )
-                    }
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      color: "#0D47A1",
-
-                      "&:hover": {
-                        backgroundColor: "#E3F2FD",
-                      },
+                      width: 64,
+                      height: 64,
+                      mx: "auto",
+                      mb: 2,
+                      borderRadius: 2.5,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#E3F2FD",
+                      color: "#1565C0",
                     }}
                   >
                     <AssessmentIcon
-                      fontSize="small"
-                    />
-                  </IconButton>
-                </Tooltip>
-
-                {/* DELETE */}
-                {a.status === "DRAFT" && (
-                  <Tooltip title="Delete Assessment">
-                    <IconButton
-                      size="small"
-                      onClick={() =>
-                        handleDelete(a._id)
-                      }
                       sx={{
-                        width: 32,
-                        height: 32,
-                        color: "#D32F2F",
-
-                        "&:hover": {
-                          backgroundColor: "#FFEBEE",
-                        },
+                        fontSize: 32,
                       }}
-                    >
-                      <DeleteIcon
-                        fontSize="small"
-                      />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Box>
-            </TableCell>
-          </TableRow>
-        ))
-      )}
-    </TableBody>
+                    />
+                  </Box>
 
-    {/* =====================================================
-        PAGINATION INSIDE TABLE
-    ===================================================== */}
-    {!loading && assessments.length > 0 && (
-      <TableFooter>
-        <TableRow>
-          <TableCell
-            colSpan={6}
-            sx={{
-              borderTop: "1px solid #E2E8F0",
-              backgroundColor: "#FAFCFF",
-              py: 1.5,
-              px: 2,
-            }}
-          >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 2,
-                flexWrap: "wrap",
-              }}
-            >
-              {/* PAGINATION INFO */}
-              <Typography
-                variant="body2"
-                sx={{
-                  color: "#64748B",
-                  fontWeight: 600,
-                }}
-              >
-                Showing{" "}
-                <Box
-                  component="span"
-                  sx={{
-                    color: "#172033",
-                    fontWeight: 800,
-                  }}
-                >
-                  {(page - 1) * limit + 1}
-                </Box>{" "}
-                -{" "}
-                <Box
-                  component="span"
-                  sx={{
-                    color: "#172033",
-                    fontWeight: 800,
-                  }}
-                >
-                  {Math.min(page * limit, total)}
-                </Box>{" "}
-                of{" "}
-                <Box
-                  component="span"
-                  sx={{
-                    color: "#1565C0",
-                    fontWeight: 800,
-                  }}
-                >
-                  {total}
-                </Box>{" "}
-                assessments
-              </Typography>
+                  <Typography
+                    variant="h6"
+                    fontWeight={750}
+                    sx={{
+                      color: "#172033",
+                    }}
+                  >
+                    No assessments found
+                  </Typography>
 
-              {/* PAGINATION */}
-              <Pagination
-                count={Math.max(
-                  1,
-                  Math.ceil(total / limit)
-                )}
-                page={page}
-                onChange={(e, value) => {
-                  setPage(value);
-                }}
-                color="primary"
-                shape="rounded"
-                size="small"
-                siblingCount={1}
-                boundaryCount={1}
-                sx={{
-                  "& .MuiPaginationItem-root": {
-                    minWidth: 30,
-                    height: 30,
-                    borderRadius: 1.5,
-                    fontWeight: 700,
-                  },
-
-                  "& .MuiPaginationItem-root.Mui-selected": {
-                    backgroundColor: "#1565C0",
-                    color: "#FFFFFF",
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      mt: 0.6,
+                    }}
+                  >
+                    There are no assessments matching your current filters.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              assessments.map((a) => (
+                <TableRow
+                  key={a._id}
+                  hover
+                  sx={{
+                    transition: "background-color 0.2s ease",
 
                     "&:hover": {
-                      backgroundColor: "#0D47A1",
+                      backgroundColor: "#F8FBFF",
                     },
-                  },
-                }}
-              />
-            </Box>
-          </TableCell>
-        </TableRow>
-      </TableFooter>
-    )}
-  </Table>
-</TableContainer>
+
+                    "&:last-child td": {
+                      borderBottom: 0,
+                    },
+                  }}
+                >
+                  {/* =================================================
+                NAME
+            ================================================= */}
+                  <TableCell>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.2,
+                        minWidth: 180,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          flexShrink: 0,
+                          borderRadius: 2,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#E3F2FD",
+                          color: "#1565C0",
+                        }}
+                      >
+                        <AssessmentIcon fontSize="small" />
+                      </Box>
+
+                      <Box
+                        sx={{
+                          minWidth: 0,
+                        }}
+                      >
+                        <Typography
+                          fontWeight={750}
+                          sx={{
+                            color: "#172033",
+                            maxWidth: 250,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {a.name || "Untitled Assessment"}
+                        </Typography>
+
+                        {a.code && (
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: "#64748B",
+                              display: "block",
+                              mt: 0.25,
+                            }}
+                          >
+                            {a.code}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </TableCell>
+
+                  {/* =================================================
+                WEEK
+            ================================================= */}
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={`Week ${a.weekNumber ?? "-"}`}
+                      sx={{
+                        height: 28,
+                        borderRadius: 1.5,
+                        backgroundColor: "#F3E5F5",
+                        color: "#7B1FA2",
+                        border: "1px solid #E1BEE7",
+                        fontWeight: 750,
+                        fontSize: "0.72rem",
+                      }}
+                    />
+                  </TableCell>
+
+                  {/* =================================================
+                BATCH
+            ================================================= */}
+                  <TableCell>
+                    <Box
+                      sx={{
+                        minWidth: 130,
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        fontWeight={650}
+                        sx={{
+                          color: "#172033",
+                          maxWidth: 180,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {a.batch?.name || "-"}
+                      </Typography>
+
+                      {a.course?.name && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "#64748B",
+                            display: "block",
+                            mt: 0.25,
+                            maxWidth: 180,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {a.course.name}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+
+                  {/* =================================================
+                STATUS
+            ================================================= */}
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={a.status || "UNKNOWN"}
+                      sx={{
+                        height: 28,
+                        borderRadius: 1.5,
+                        fontWeight: 750,
+                        fontSize: "0.72rem",
+                        border: "1px solid",
+
+                        ...(a.status === "PUBLISHED"
+                          ? {
+                              backgroundColor: "#E8F5E9",
+                              color: "#2E7D32",
+                              borderColor: "#A5D6A7",
+                            }
+                          : a.status === "DRAFT"
+                            ? {
+                                backgroundColor: "#F1F5F9",
+                                color: "#475569",
+                                borderColor: "#CBD5E1",
+                              }
+                            : a.status === "SCHEDULED"
+                              ? {
+                                  backgroundColor: "#E3F2FD",
+                                  color: "#1565C0",
+                                  borderColor: "#90CAF9",
+                                }
+                              : a.status === "CLOSED"
+                                ? {
+                                    backgroundColor: "#FFEBEE",
+                                    color: "#D32F2F",
+                                    borderColor: "#EF9A9A",
+                                  }
+                                : a.status === "ARCHIVED"
+                                  ? {
+                                      backgroundColor: "#FFF3E0",
+                                      color: "#E65100",
+                                      borderColor: "#FFCC80",
+                                    }
+                                  : {
+                                      backgroundColor: "#F8FAFC",
+                                      color: "#64748B",
+                                      borderColor: "#CBD5E1",
+                                    }),
+                      }}
+                    />
+                  </TableCell>
+
+                  {/* =================================================
+                TOTAL MARKS
+            ================================================= */}
+                  <TableCell>
+                    <Box>
+                      <Typography
+                        fontWeight={800}
+                        sx={{
+                          color: "#172033",
+                        }}
+                      >
+                        {a.totalMarks || 0}
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "#64748B",
+                        }}
+                      >
+                        Total marks
+                      </Typography>
+                    </Box>
+                  </TableCell>
+
+                  {/* =================================================
+                ACTIONS
+            ================================================= */}
+                  <TableCell align="right">
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        gap: 0.2,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {/* VIEW */}
+                      <Tooltip title="View Assessment">
+                        <IconButton
+                          size="small"
+                          onClick={() => router.push(`/assessments/${a._id}`)}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            color: "#1565C0",
+
+                            "&:hover": {
+                              backgroundColor: "#E3F2FD",
+                            },
+                          }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* EDIT */}
+                      {a.status === "DRAFT" && (
+                        <Tooltip title="Edit Assessment">
+                          <IconButton
+                            size="small"
+                            onClick={() =>
+                              router.push(`/assessments/${a._id}/edit`)
+                            }
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              color: "#ED6C02",
+
+                              "&:hover": {
+                                backgroundColor: "#FFF3E0",
+                              },
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* DUPLICATE */}
+                      <Tooltip title="Duplicate Assessment">
+                        <IconButton
+                          size="small"
+                          onClick={() => openDuplicateDialog(a)}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            color: "#7B1FA2",
+
+                            "&:hover": {
+                              backgroundColor: "#F3E5F5",
+                            },
+                          }}
+                        >
+                          <FileCopyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* PUBLISH */}
+                      {a.status === "DRAFT" && (
+                        <Tooltip title="Publish Assessment">
+                          <IconButton
+                            size="small"
+                            onClick={() => handlePublish(a._id)}
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              color: "#2E7D32",
+
+                              "&:hover": {
+                                backgroundColor: "#E8F5E9",
+                              },
+                            }}
+                          >
+                            <PublishIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* ENTER MARKS */}
+                      {(a.status === "PUBLISHED" || a.status === "CLOSED") && (
+                        <Tooltip title="Enter Marks">
+                          <IconButton
+                            size="small"
+                            onClick={() =>
+                              router.push(`/assessments/${a._id}/marks`)
+                            }
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              color: "#1565C0",
+
+                              "&:hover": {
+                                backgroundColor: "#E3F2FD",
+                              },
+                            }}
+                          >
+                            <GradingIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* RESULTS */}
+                      <Tooltip title="View Results">
+                        <IconButton
+                          size="small"
+                          onClick={() =>
+                            router.push(`/assessments/${a._id}/results`)
+                          }
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            color: "#0D47A1",
+
+                            "&:hover": {
+                              backgroundColor: "#E3F2FD",
+                            },
+                          }}
+                        >
+                          <AssessmentIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* DELETE */}
+                      {a.status === "DRAFT" && (
+                        <Tooltip title="Delete Assessment">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDelete(a._id)}
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              color: "#D32F2F",
+
+                              "&:hover": {
+                                backgroundColor: "#FFEBEE",
+                              },
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+
+          {/* =====================================================
+        PAGINATION INSIDE TABLE
+    ===================================================== */}
+          {!loading && assessments.length > 0 && (
+            <TableFooter>
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  sx={{
+                    borderTop: "1px solid #E2E8F0",
+                    backgroundColor: "#FAFCFF",
+                    py: 1.5,
+                    px: 2,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 2,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {/* PAGINATION INFO */}
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "#64748B",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Showing{" "}
+                      <Box
+                        component="span"
+                        sx={{
+                          color: "#172033",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {(page - 1) * limit + 1}
+                      </Box>{" "}
+                      -{" "}
+                      <Box
+                        component="span"
+                        sx={{
+                          color: "#172033",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {Math.min(page * limit, total)}
+                      </Box>{" "}
+                      of{" "}
+                      <Box
+                        component="span"
+                        sx={{
+                          color: "#1565C0",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {total}
+                      </Box>{" "}
+                      assessments
+                    </Typography>
+
+                    {/* PAGINATION */}
+                    <Pagination
+                      count={Math.max(1, Math.ceil(total / limit))}
+                      page={page}
+                      onChange={(e, value) => {
+                        setPage(value);
+                      }}
+                      color="primary"
+                      shape="rounded"
+                      size="small"
+                      siblingCount={1}
+                      boundaryCount={1}
+                      sx={{
+                        "& .MuiPaginationItem-root": {
+                          minWidth: 30,
+                          height: 30,
+                          borderRadius: 1.5,
+                          fontWeight: 700,
+                        },
+
+                        "& .MuiPaginationItem-root.Mui-selected": {
+                          backgroundColor: "#1565C0",
+                          color: "#FFFFFF",
+
+                          "&:hover": {
+                            backgroundColor: "#0D47A1",
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+                </TableCell>
+              </TableRow>
+            </TableFooter>
+          )}
+        </Table>
+      </TableContainer>
 
       {/* =====================================================
           DUPLICATE ASSESSMENT DIALOG
@@ -1238,9 +1145,7 @@ export default function AssessmentsPage() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>
-          Duplicate Assessment
-        </DialogTitle>
+        <DialogTitle>Duplicate Assessment</DialogTitle>
 
         <DialogContent>
           {/* =================================================
@@ -1256,46 +1161,24 @@ export default function AssessmentsPage() {
                 mb: 2,
               }}
             >
-              <Typography
-                variant="subtitle1"
-                fontWeight={700}
-              >
+              <Typography variant="subtitle1" fontWeight={700}>
                 {selectedAssessment.name}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                Current Batch:{" "}
-                {selectedAssessment.batch?.name ||
-                  "-"}
+              <Typography variant="body2" color="text.secondary">
+                Current Batch: {selectedAssessment.batch?.name || "-"}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                Current Week:{" "}
-                {selectedAssessment.weekNumber}
+              <Typography variant="body2" color="text.secondary">
+                Current Week: {selectedAssessment.weekNumber}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                Questions:{" "}
-                {selectedAssessment.totalQuestions ||
-                  0}
+              <Typography variant="body2" color="text.secondary">
+                Questions: {selectedAssessment.totalQuestions || 0}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                Total Marks:{" "}
-                {selectedAssessment.totalMarks ||
-                  0}
+              <Typography variant="body2" color="text.secondary">
+                Total Marks: {selectedAssessment.totalMarks || 0}
               </Typography>
             </Paper>
           )}
@@ -1305,10 +1188,7 @@ export default function AssessmentsPage() {
           ================================================= */}
 
           {duplicateError && (
-            <Alert
-              severity="error"
-              sx={{ mb: 2 }}
-            >
+            <Alert severity="error" sx={{ mb: 2 }}>
               {duplicateError}
             </Alert>
           )}
@@ -1320,42 +1200,24 @@ export default function AssessmentsPage() {
           <FormControl
             fullWidth
             margin="normal"
-            disabled={
-              loadingBatches ||
-              duplicating
-            }
+            disabled={loadingBatches || duplicating}
           >
-            <InputLabel>
-              Target Batch
-            </InputLabel>
+            <InputLabel>Target Batch</InputLabel>
 
             <Select
               value={targetBatch}
               label="Target Batch"
-              onChange={(e) =>
-                setTargetBatch(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setTargetBatch(e.target.value)}
             >
-              <MenuItem value="">
-                Select Target Batch
-              </MenuItem>
+              <MenuItem value="">Select Target Batch</MenuItem>
 
-              {targetBatches.map(
-                (batch) => (
-                  <MenuItem
-                    key={batch._id}
-                    value={batch._id}
-                  >
-                    {batch.name}
+              {targetBatches.map((batch) => (
+                <MenuItem key={batch._id} value={batch._id}>
+                  {batch.name}
 
-                    {batch.code
-                      ? ` (${batch.code})`
-                      : ""}
-                  </MenuItem>
-                )
-              )}
+                  {batch.code ? ` (${batch.code})` : ""}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
@@ -1372,14 +1234,9 @@ export default function AssessmentsPage() {
                 mt: 1,
               }}
             >
-              <CircularProgress
-                size={18}
-              />
+              <CircularProgress size={18} />
 
-              <Typography
-                variant="caption"
-                color="text.secondary"
-              >
+              <Typography variant="caption" color="text.secondary">
                 Loading your assigned batches...
               </Typography>
             </Box>
@@ -1389,31 +1246,21 @@ export default function AssessmentsPage() {
               NO OTHER ASSIGNED BATCHES
           ================================================= */}
 
-          {!loadingBatches &&
-            targetBatches.length === 0 && (
-              <Alert
-                severity="warning"
-                sx={{ mt: 2 }}
-              >
-                No other assigned batches are
-                available for duplication.
-              </Alert>
-            )}
+          {!loadingBatches && targetBatches.length === 0 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              No other assigned batches are available for duplication.
+            </Alert>
+          )}
 
           {/* =================================================
               ASSIGNED BATCH INFO
           ================================================= */}
 
-          {!loadingBatches &&
-            targetBatches.length > 0 && (
-              <Alert
-                severity="info"
-                sx={{ mt: 2 }}
-              >
-                Only batches assigned to your account
-                are available here.
-              </Alert>
-            )}
+          {!loadingBatches && targetBatches.length > 0 && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Only batches assigned to your account are available here.
+            </Alert>
+          )}
 
           <Divider sx={{ my: 2 }} />
 
@@ -1426,11 +1273,7 @@ export default function AssessmentsPage() {
             margin="normal"
             label="New Assessment Name"
             value={duplicateName}
-            onChange={(e) =>
-              setDuplicateName(
-                e.target.value
-              )
-            }
+            onChange={(e) => setDuplicateName(e.target.value)}
             disabled={duplicating}
           />
 
@@ -1443,11 +1286,7 @@ export default function AssessmentsPage() {
             margin="normal"
             label="Assessment Code"
             value={duplicateCode}
-            onChange={(e) =>
-              setDuplicateCode(
-                e.target.value
-              )
-            }
+            onChange={(e) => setDuplicateCode(e.target.value)}
             disabled={duplicating}
             helperText="Assessment code target batch ke liye unique hona chahiye."
           />
@@ -1462,11 +1301,7 @@ export default function AssessmentsPage() {
             label="Target Week Number"
             type="number"
             value={targetWeek}
-            onChange={(e) =>
-              setTargetWeek(
-                e.target.value
-              )
-            }
+            onChange={(e) => setTargetWeek(e.target.value)}
             disabled={duplicating}
             inputProps={{
               min: 1,
@@ -1478,20 +1313,12 @@ export default function AssessmentsPage() {
               COPY INFO
           ================================================= */}
 
-          <Alert
-            severity="info"
-            sx={{ mt: 2 }}
-          >
+          <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2">
-              <strong>
-                What will be copied?
-              </strong>
+              <strong>What will be copied?</strong>
             </Typography>
 
-            <Typography
-              variant="body2"
-              sx={{ mt: 0.5 }}
-            >
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
               • Assessment details
               <br />
               • Sections
@@ -1501,28 +1328,17 @@ export default function AssessmentsPage() {
               • Question marks
               <br />
               • Question order
-              <br />
-              • Scoring configuration
+              <br />• Scoring configuration
             </Typography>
 
-            <Typography
-              variant="body2"
-              sx={{ mt: 1 }}
-            >
-              Target batch ka organisation,
-              centre, course aur batch backend
-              automatically selected target batch
-              se set karega.
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Target batch ka organisation, centre, course aur batch backend
+              automatically selected target batch se set karega.
             </Typography>
 
-            <Typography
-              variant="body2"
-              sx={{ mt: 1 }}
-            >
-              Students, submissions, marks aur
-              results copy nahi honge. Target batch
-              ka assessment completely independent
-              rahega.
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Students, submissions, marks aur results copy nahi honge. Target
+              batch ka assessment completely independent rahega.
             </Typography>
           </Alert>
         </DialogContent>
@@ -1537,10 +1353,7 @@ export default function AssessmentsPage() {
             pb: 2,
           }}
         >
-          <Button
-            onClick={closeDuplicateDialog}
-            disabled={duplicating}
-          >
+          <Button onClick={closeDuplicateDialog} disabled={duplicating}>
             Cancel
           </Button>
 
@@ -1548,10 +1361,7 @@ export default function AssessmentsPage() {
             variant="contained"
             startIcon={
               duplicating ? (
-                <CircularProgress
-                  size={18}
-                  color="inherit"
-                />
+                <CircularProgress size={18} color="inherit" />
               ) : (
                 <FileCopyIcon />
               )
@@ -1566,9 +1376,7 @@ export default function AssessmentsPage() {
               !duplicateCode.trim()
             }
           >
-            {duplicating
-              ? "Duplicating..."
-              : "Duplicate Assessment"}
+            {duplicating ? "Duplicating..." : "Duplicate Assessment"}
           </Button>
         </DialogActions>
       </Dialog>
