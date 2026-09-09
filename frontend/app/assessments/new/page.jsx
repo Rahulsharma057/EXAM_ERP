@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -106,10 +105,7 @@ export default function NewAssessmentPage() {
 
     const weekNumber = Number(form.weekNumber);
 
-    if (
-      !Number.isInteger(weekNumber) ||
-      weekNumber <= 0
-    ) {
+    if (!Number.isInteger(weekNumber) || weekNumber <= 0) {
       setError("Please enter a valid week number.");
       return false;
     }
@@ -187,32 +183,25 @@ export default function NewAssessmentPage() {
 
         code: form.code.trim(),
 
-        description:
-          form.description?.trim() || "",
+        description: form.description?.trim() || "",
 
-        instructions:
-          form.instructions?.trim() || "",
+        instructions: form.instructions?.trim() || "",
 
         weekNumber: Number(form.weekNumber),
 
-        academicYear:
-          form.academicYear.trim(),
+        academicYear: form.academicYear.trim(),
 
         // ====================================================
         // SCHEDULE
         // ====================================================
 
-        publishDate:
-          form.publishDate || null,
+        publishDate: form.publishDate || null,
 
-        publishTime:
-          form.publishTime || null,
+        publishTime: form.publishTime || null,
 
-        closeDate:
-          form.closeDate || null,
+        closeDate: form.closeDate || null,
 
-        closeTime:
-          form.closeTime || null,
+        closeTime: form.closeTime || null,
 
         // ====================================================
         // PART MODE
@@ -224,27 +213,19 @@ export default function NewAssessmentPage() {
         // HIERARCHY
         // ====================================================
 
-        organisation:
-          hierarchy.organisation,
+        organisation: hierarchy.organisation,
 
-        centre:
-          hierarchy.centre,
+        centre: hierarchy.centre,
 
-        course:
-          hierarchy.course,
+        course: hierarchy.course,
 
-        batch:
-          hierarchy.batch,
+        batch: hierarchy.batch,
       };
 
-      const res =
-        await api.createAssessment(data);
+      const res = await api.createAssessment(data);
 
       if (!res?.success || !res?.data) {
-        throw new Error(
-          res?.message ||
-            "Assessment creation failed.",
-        );
+        throw new Error(res?.message || "Assessment creation failed.");
       }
 
       setAssessment(res.data);
@@ -252,15 +233,9 @@ export default function NewAssessmentPage() {
       // Builder step
       setActiveStep(2);
     } catch (err) {
-      console.error(
-        "CREATE ASSESSMENT ERROR:",
-        err,
-      );
+      console.error("CREATE ASSESSMENT ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to create assessment.",
-      );
+      setError(err?.message || "Failed to create assessment.");
     } finally {
       setLoading(false);
     }
@@ -272,9 +247,7 @@ export default function NewAssessmentPage() {
 
   const handlePublish = async () => {
     if (!assessment?._id) {
-      setError(
-        "Assessment information is missing.",
-      );
+      setError("Assessment information is missing.");
       return;
     }
 
@@ -282,21 +255,13 @@ export default function NewAssessmentPage() {
       setLoading(true);
       setError("");
 
-      await api.publishAssessment(
-        assessment._id,
-      );
+      await api.publishAssessment(assessment._id);
 
       router.push("/assessments");
     } catch (err) {
-      console.error(
-        "PUBLISH ASSESSMENT ERROR:",
-        err,
-      );
+      console.error("PUBLISH ASSESSMENT ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to publish assessment.",
-      );
+      setError(err?.message || "Failed to publish assessment.");
     } finally {
       setLoading(false);
     }
@@ -320,19 +285,13 @@ export default function NewAssessmentPage() {
     }
 
     try {
-      const res =
-        await api.getAssessment(
-          assessment._id,
-        );
+      const res = await api.getAssessment(assessment._id);
 
       if (res?.data) {
         setAssessment(res.data);
       }
     } catch (err) {
-      console.error(
-        "REFRESH ASSESSMENT ERROR:",
-        err,
-      );
+      console.error("REFRESH ASSESSMENT ERROR:", err);
     }
   };
 
@@ -345,28 +304,17 @@ export default function NewAssessmentPage() {
       setLoading(true);
       setError("");
 
-      const res =
-        await api.getPreview(
-          assessment._id,
-        );
+      const res = await api.getPreview(assessment._id);
 
       if (res?.data?.assessment) {
-        setAssessment(
-          res.data.assessment,
-        );
+        setAssessment(res.data.assessment);
       }
 
       setActiveStep(3);
     } catch (err) {
-      console.error(
-        "PREVIEW ERROR:",
-        err,
-      );
+      console.error("PREVIEW ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Unable to load assessment preview.",
-      );
+      setError(err?.message || "Unable to load assessment preview.");
     } finally {
       setLoading(false);
     }
@@ -383,6 +331,7 @@ export default function NewAssessmentPage() {
           width: "100%",
           maxWidth: 1400,
           mx: "auto",
+          m: 1,
         }}
       >
         {/* ================================================== */}
@@ -391,7 +340,7 @@ export default function NewAssessmentPage() {
 
         <Box
           sx={{
-            mb: 3,
+            m: 3,
             display: "flex",
             justifyContent: "space-between",
             alignItems: {
@@ -406,19 +355,12 @@ export default function NewAssessmentPage() {
           }}
         >
           <Box>
-            <Typography
-              variant="h4"
-              fontWeight={700}
-            >
+            <Typography variant="h4" fontWeight={700}>
               Create Assessment
             </Typography>
 
-            <Typography
-              color="text.secondary"
-              sx={{ mt: 0.5 }}
-            >
-              Create a weekly assessment,
-              configure sections/questions and
+            <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+              Create a weekly assessment, configure sections/questions and
               publish it for students.
             </Typography>
           </Box>
@@ -426,15 +368,9 @@ export default function NewAssessmentPage() {
           {assessment && (
             <Chip
               label={
-                assessment.hasParts
-                  ? "Parts Mode"
-                  : "Direct Sections Mode"
+                assessment.hasParts ? "Parts Mode" : "Direct Sections Mode"
               }
-              color={
-                assessment.hasParts
-                  ? "secondary"
-                  : "primary"
-              }
+              color={assessment.hasParts ? "secondary" : "primary"}
               variant="outlined"
             />
           )}
@@ -453,9 +389,7 @@ export default function NewAssessmentPage() {
         >
           {steps.map((label) => (
             <Step key={label}>
-              <StepLabel>
-                {label}
-              </StepLabel>
+              <StepLabel>{label}</StepLabel>
             </Step>
           ))}
         </Stepper>
@@ -465,13 +399,7 @@ export default function NewAssessmentPage() {
         {/* ================================================== */}
 
         {error && (
-          <Alert
-            severity="error"
-            sx={{ mb: 3 }}
-            onClose={() =>
-              setError("")
-            }
-          >
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
             {error}
           </Alert>
         )}
@@ -493,65 +421,35 @@ export default function NewAssessmentPage() {
               borderColor: "divider",
             }}
           >
-            <Typography
-              variant="h6"
-              fontWeight={700}
-              mb={3}
-            >
+            <Typography variant="h6" fontWeight={700} mb={3}>
               Basic Details
             </Typography>
 
-            <Grid
-              container
-              spacing={2}
-            >
+            <Grid container spacing={2}>
               {/* Assessment Name */}
-              <Grid
-                item
-                xs={12}
-                md={6}
-              >
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="Assessment Name"
                   fullWidth
                   required
                   value={form.name}
-                  onChange={(e) =>
-                    handleFormChange(
-                      "name",
-                      e.target.value,
-                    )
-                  }
+                  onChange={(e) => handleFormChange("name", e.target.value)}
                 />
               </Grid>
 
               {/* Assessment Code */}
-              <Grid
-                item
-                xs={12}
-                md={6}
-              >
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="Assessment Code"
                   fullWidth
                   required
                   value={form.code}
-                  onChange={(e) =>
-                    handleFormChange(
-                      "code",
-                      e.target.value,
-                    )
-                  }
+                  onChange={(e) => handleFormChange("code", e.target.value)}
                 />
               </Grid>
 
               {/* Week */}
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={4}
-              >
+              <Grid item xs={12} sm={6} md={4}>
                 <TextField
                   label="Week Number"
                   type="number"
@@ -560,48 +458,29 @@ export default function NewAssessmentPage() {
                   inputProps={{
                     min: 1,
                   }}
-                  value={
-                    form.weekNumber
-                  }
+                  value={form.weekNumber}
                   onChange={(e) =>
-                    handleFormChange(
-                      "weekNumber",
-                      e.target.value,
-                    )
+                    handleFormChange("weekNumber", e.target.value)
                   }
                 />
               </Grid>
 
               {/* Academic Year */}
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={4}
-              >
+              <Grid item xs={12} sm={6} md={4}>
                 <TextField
                   label="Academic / Training Year"
                   fullWidth
                   required
                   placeholder="2026-27"
-                  value={
-                    form.academicYear
-                  }
+                  value={form.academicYear}
                   onChange={(e) =>
-                    handleFormChange(
-                      "academicYear",
-                      e.target.value,
-                    )
+                    handleFormChange("academicYear", e.target.value)
                   }
                 />
               </Grid>
 
               {/* Has Parts */}
-              <Grid
-                item
-                xs={12}
-                md={4}
-              >
+              <Grid item xs={12} md={4}>
                 <Paper
                   variant="outlined"
                   sx={{
@@ -616,30 +495,18 @@ export default function NewAssessmentPage() {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={
-                          form.hasParts
-                        }
+                        checked={form.hasParts}
                         onChange={(e) =>
-                          handleFormChange(
-                            "hasParts",
-                            e.target.checked,
-                          )
+                          handleFormChange("hasParts", e.target.checked)
                         }
                         color="secondary"
                       />
                     }
                     label={
                       <Box>
-                        <Typography
-                          fontWeight={600}
-                        >
-                          Enable Parts
-                        </Typography>
+                        <Typography fontWeight={600}>Enable Parts</Typography>
 
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                        >
+                        <Typography variant="caption" color="text.secondary">
                           Use Part → Section → Question
                         </Typography>
                       </Box>
@@ -649,45 +516,29 @@ export default function NewAssessmentPage() {
               </Grid>
 
               {/* Description */}
-              <Grid
-                item
-                xs={12}
-              >
+              <Grid item xs={12}>
                 <TextField
                   label="Description"
                   fullWidth
                   multiline
                   rows={3}
-                  value={
-                    form.description
-                  }
+                  value={form.description}
                   onChange={(e) =>
-                    handleFormChange(
-                      "description",
-                      e.target.value,
-                    )
+                    handleFormChange("description", e.target.value)
                   }
                 />
               </Grid>
 
               {/* Instructions */}
-              <Grid
-                item
-                xs={12}
-              >
+              <Grid item xs={12}>
                 <TextField
                   label="Instructions"
                   fullWidth
                   multiline
                   rows={3}
-                  value={
-                    form.instructions
-                  }
+                  value={form.instructions}
                   onChange={(e) =>
-                    handleFormChange(
-                      "instructions",
-                      e.target.value,
-                    )
+                    handleFormChange("instructions", e.target.value)
                   }
                 />
               </Grid>
@@ -699,24 +550,12 @@ export default function NewAssessmentPage() {
             {/* SCHEDULE */}
             {/* ================================================= */}
 
-            <Typography
-              variant="subtitle1"
-              fontWeight={700}
-              mb={2}
-            >
+            <Typography variant="subtitle1" fontWeight={700} mb={2}>
               Assessment Schedule
             </Typography>
 
-            <Grid
-              container
-              spacing={2}
-            >
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={3}
-              >
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
                 <TextField
                   label="Publish Date"
                   type="date"
@@ -724,24 +563,14 @@ export default function NewAssessmentPage() {
                   InputLabelProps={{
                     shrink: true,
                   }}
-                  value={
-                    form.publishDate
-                  }
+                  value={form.publishDate}
                   onChange={(e) =>
-                    handleFormChange(
-                      "publishDate",
-                      e.target.value,
-                    )
+                    handleFormChange("publishDate", e.target.value)
                   }
                 />
               </Grid>
 
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={3}
-              >
+              <Grid item xs={12} sm={6} md={3}>
                 <TextField
                   label="Publish Time"
                   type="time"
@@ -749,24 +578,14 @@ export default function NewAssessmentPage() {
                   InputLabelProps={{
                     shrink: true,
                   }}
-                  value={
-                    form.publishTime
-                  }
+                  value={form.publishTime}
                   onChange={(e) =>
-                    handleFormChange(
-                      "publishTime",
-                      e.target.value,
-                    )
+                    handleFormChange("publishTime", e.target.value)
                   }
                 />
               </Grid>
 
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={3}
-              >
+              <Grid item xs={12} sm={6} md={3}>
                 <TextField
                   label="Close Date"
                   type="date"
@@ -774,24 +593,14 @@ export default function NewAssessmentPage() {
                   InputLabelProps={{
                     shrink: true,
                   }}
-                  value={
-                    form.closeDate
-                  }
+                  value={form.closeDate}
                   onChange={(e) =>
-                    handleFormChange(
-                      "closeDate",
-                      e.target.value,
-                    )
+                    handleFormChange("closeDate", e.target.value)
                   }
                 />
               </Grid>
 
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={3}
-              >
+              <Grid item xs={12} sm={6} md={3}>
                 <TextField
                   label="Close Time"
                   type="time"
@@ -799,14 +608,9 @@ export default function NewAssessmentPage() {
                   InputLabelProps={{
                     shrink: true,
                   }}
-                  value={
-                    form.closeTime
-                  }
+                  value={form.closeTime}
                   onChange={(e) =>
-                    handleFormChange(
-                      "closeTime",
-                      e.target.value,
-                    )
+                    handleFormChange("closeTime", e.target.value)
                   }
                 />
               </Grid>
@@ -823,12 +627,7 @@ export default function NewAssessmentPage() {
                 justifyContent: "flex-end",
               }}
             >
-              <Button
-                variant="contained"
-                onClick={
-                  handleBasicNext
-                }
-              >
+              <Button variant="contained" onClick={handleBasicNext}>
                 Next
               </Button>
             </Box>
@@ -852,37 +651,21 @@ export default function NewAssessmentPage() {
               borderColor: "divider",
             }}
           >
-            <Typography
-              variant="h6"
-              fontWeight={700}
-              mb={1}
-            >
+            <Typography variant="h6" fontWeight={700} mb={1}>
               Select Assessment Hierarchy
             </Typography>
 
-            <Typography
-              color="text.secondary"
-              mb={3}
-            >
-              Select Organisation → Centre →
-              Course → Batch. Only students from
-              the selected batch will be eligible
-              for this assessment.
+            <Typography color="text.secondary" mb={3}>
+              Select Organisation → Centre → Course → Batch. Only students from
+              the selected batch will be eligible for this assessment.
             </Typography>
 
-            <HierarchyFilter
-              onChange={setHierarchy}
-              values={hierarchy}
-            />
+            <HierarchyFilter onChange={setHierarchy} values={hierarchy} />
 
             {/* Selected hierarchy */}
             {hierarchy?.batch && (
-              <Alert
-                severity="info"
-                sx={{ mt: 3 }}
-              >
-                Assessment will be assigned to
-                the selected Batch.
+              <Alert severity="info" sx={{ mt: 3 }}>
+                Assessment will be assigned to the selected Batch.
               </Alert>
             )}
 
@@ -890,18 +673,11 @@ export default function NewAssessmentPage() {
               sx={{
                 mt: 3,
                 display: "flex",
-                justifyContent:
-                  "space-between",
+                justifyContent: "space-between",
                 gap: 2,
               }}
             >
-              <Button
-                onClick={() =>
-                  setActiveStep(0)
-                }
-              >
-                Back
-              </Button>
+              <Button onClick={() => setActiveStep(0)}>Back</Button>
 
               <Button
                 variant="contained"
@@ -909,16 +685,11 @@ export default function NewAssessmentPage() {
                 disabled={loading}
                 startIcon={
                   loading ? (
-                    <CircularProgress
-                      size={18}
-                      color="inherit"
-                    />
+                    <CircularProgress size={18} color="inherit" />
                   ) : null
                 }
               >
-                {loading
-                  ? "Creating..."
-                  : "Create & Continue"}
+                {loading ? "Creating..." : "Create & Continue"}
               </Button>
             </Box>
           </Paper>
@@ -928,397 +699,262 @@ export default function NewAssessmentPage() {
         {/* STEP 3 - BUILD */}
         {/* ================================================== */}
 
-        {activeStep === 2 &&
-          assessment && (
-            <Paper
-              elevation={0}
+        {activeStep === 2 && assessment && (
+          <Paper
+            elevation={0}
+            sx={{
+              p: {
+                xs: 1.5,
+                sm: 3,
+              },
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Box
               sx={{
-                p: {
-                  xs: 1.5,
-                  sm: 3,
-                },
-                borderRadius: 3,
-                border: "1px solid",
-                borderColor: "divider",
+                mb: 3,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 2,
+                flexWrap: "wrap",
               }}
             >
-              <Box
-                sx={{
-                  mb: 3,
-                  display: "flex",
-                  justifyContent:
-                    "space-between",
-                  alignItems: "center",
-                  gap: 2,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Box>
-                  <Typography
-                    variant="h6"
-                    fontWeight={700}
-                  >
-                    Build Assessment
-                  </Typography>
+              <Box>
+                <Typography variant="h6" fontWeight={700}>
+                  Build Assessment
+                </Typography>
 
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                  >
-                    {assessment.name}
-                  </Typography>
-                </Box>
-
-                <Chip
-                  label={
-                    assessment.hasParts
-                      ? "Parts Enabled"
-                      : "Parts Disabled"
-                  }
-                  color={
-                    assessment.hasParts
-                      ? "secondary"
-                      : "default"
-                  }
-                />
+                <Typography variant="body2" color="text.secondary">
+                  {assessment.name}
+                </Typography>
               </Box>
 
-              <AssessmentBuilder
-                assessment={
-                  assessment
-                }
-                onUpdate={
-                  handleBuilderUpdate
-                }
+              <Chip
+                label={assessment.hasParts ? "Parts Enabled" : "Parts Disabled"}
+                color={assessment.hasParts ? "secondary" : "default"}
               />
+            </Box>
 
-              <Box
-                sx={{
-                  mt: 3,
-                  display: "flex",
-                  justifyContent:
-                    "space-between",
-                  gap: 2,
-                }}
+            <AssessmentBuilder
+              assessment={assessment}
+              onUpdate={handleBuilderUpdate}
+            />
+
+            <Box
+              sx={{
+                mt: 3,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 2,
+              }}
+            >
+              <Button onClick={handleBackToHierarchy}>Back</Button>
+
+              <Button
+                variant="contained"
+                onClick={handlePreview}
+                disabled={loading}
+                startIcon={
+                  loading ? (
+                    <CircularProgress size={18} color="inherit" />
+                  ) : null
+                }
               >
-                <Button
-                  onClick={
-                    handleBackToHierarchy
-                  }
-                >
-                  Back
-                </Button>
-
-                <Button
-                  variant="contained"
-                  onClick={
-                    handlePreview
-                  }
-                  disabled={loading}
-                  startIcon={
-                    loading ? (
-                      <CircularProgress
-                        size={18}
-                        color="inherit"
-                      />
-                    ) : null
-                  }
-                >
-                  {loading
-                    ? "Loading..."
-                    : "Preview"}
-                </Button>
-              </Box>
-            </Paper>
-          )}
+                {loading ? "Loading..." : "Preview"}
+              </Button>
+            </Box>
+          </Paper>
+        )}
 
         {/* ================================================== */}
         {/* STEP 4 - PREVIEW */}
         {/* ================================================== */}
 
-        {activeStep === 3 &&
-          assessment && (
-            <Paper
-              elevation={0}
+        {activeStep === 3 && assessment && (
+          <Paper
+            elevation={0}
+            sx={{
+              p: {
+                xs: 2,
+                sm: 3,
+              },
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            {/* Header */}
+            <Box
               sx={{
-                p: {
-                  xs: 2,
-                  sm: 3,
-                },
-                borderRadius: 3,
-                border: "1px solid",
-                borderColor: "divider",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 2,
+                flexWrap: "wrap",
               }}
             >
-              {/* Header */}
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent:
-                    "space-between",
-                  alignItems: "flex-start",
-                  gap: 2,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Box>
-                  <Typography
-                    variant="h5"
-                    fontWeight={700}
-                  >
-                    {assessment.name}
-                  </Typography>
+              <Box>
+                <Typography variant="h5" fontWeight={700}>
+                  {assessment.name}
+                </Typography>
 
-                  <Typography
-                    color="text.secondary"
-                    sx={{ mt: 0.5 }}
-                  >
-                    Code:{" "}
-                    {assessment.code}
-                  </Typography>
+                <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                  Code: {assessment.code}
+                </Typography>
 
-                  <Typography
-                    color="text.secondary"
-                  >
-                    Week{" "}
-                    {
-                      assessment.weekNumber
-                    }{" "}
-                    •{" "}
-                    {
-                      assessment.academicYear
-                    }
-                  </Typography>
-                </Box>
-
-                <Chip
-                  label={
-                    assessment.hasParts
-                      ? "Part Based Assessment"
-                      : "Section Based Assessment"
-                  }
-                  color={
-                    assessment.hasParts
-                      ? "secondary"
-                      : "primary"
-                  }
-                />
+                <Typography color="text.secondary">
+                  Week {assessment.weekNumber} • {assessment.academicYear}
+                </Typography>
               </Box>
 
-              <Divider sx={{ my: 3 }} />
+              <Chip
+                label={
+                  assessment.hasParts
+                    ? "Part Based Assessment"
+                    : "Section Based Assessment"
+                }
+                color={assessment.hasParts ? "secondary" : "primary"}
+              />
+            </Box>
 
-              {/* Description */}
-              {assessment.description && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight={700}
-                  >
-                    Description
-                  </Typography>
+            <Divider sx={{ my: 3 }} />
 
-                  <Typography
-                    color="text.secondary"
-                  >
-                    {
-                      assessment.description
-                    }
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Instructions */}
-              {assessment.instructions && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight={700}
-                  >
-                    Instructions
-                  </Typography>
-
-                  <Typography
-                    color="text.secondary"
-                  >
-                    {
-                      assessment.instructions
-                    }
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Hierarchy */}
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  mb: 3,
-                  borderRadius: 2,
-                }}
-              >
-                <Typography
-                  variant="subtitle1"
-                  fontWeight={700}
-                  mb={1}
-                >
-                  Assigned Batch
+            {/* Description */}
+            {assessment.description && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  Description
                 </Typography>
 
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                >
-                  Assessment is assigned to the
-                  selected batch and its students.
+                <Typography color="text.secondary">
+                  {assessment.description}
                 </Typography>
-              </Paper>
+              </Box>
+            )}
 
-              {/* Stats */}
-              <Grid
-                container
-                spacing={2}
-                sx={{ mb: 3 }}
-              >
-                <Grid
-                  item
-                  xs={12}
-                  sm={4}
+            {/* Instructions */}
+            {assessment.instructions && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  Instructions
+                </Typography>
+
+                <Typography color="text.secondary">
+                  {assessment.instructions}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Hierarchy */}
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                mb: 3,
+                borderRadius: 2,
+              }}
+            >
+              <Typography variant="subtitle1" fontWeight={700} mb={1}>
+                Assigned Batch
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary">
+                Assessment is assigned to the selected batch and its students.
+              </Typography>
+            </Paper>
+
+            {/* Stats */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={4}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                  }}
                 >
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      Total Questions
-                    </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Questions
+                  </Typography>
 
-                    <Typography
-                      variant="h5"
-                      fontWeight={700}
-                    >
-                      {
-                        assessment.totalQuestions ??
-                        0
-                      }
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                <Grid
-                  item
-                  xs={12}
-                  sm={4}
-                >
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      Total Marks
-                    </Typography>
-
-                    <Typography
-                      variant="h5"
-                      fontWeight={700}
-                    >
-                      {
-                        assessment.totalMarks ??
-                        0
-                      }
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                <Grid
-                  item
-                  xs={12}
-                  sm={4}
-                >
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      Structure
-                    </Typography>
-
-                    <Typography
-                      variant="h6"
-                      fontWeight={700}
-                    >
-                      {assessment.hasParts
-                        ? "Parts → Sections"
-                        : "Sections"}
-                    </Typography>
-                  </Paper>
-                </Grid>
+                  <Typography variant="h5" fontWeight={700}>
+                    {assessment.totalQuestions ?? 0}
+                  </Typography>
+                </Paper>
               </Grid>
 
-              {/* ================================================= */}
-              {/* ACTIONS */}
-              {/* ================================================= */}
+              <Grid item xs={12} sm={4}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Total Marks
+                  </Typography>
 
-              <Box
-                sx={{
-                  mt: 3,
-                  display: "flex",
-                  justifyContent:
-                    "space-between",
-                  gap: 2,
-                  flexWrap: "wrap",
-                }}
+                  <Typography variant="h5" fontWeight={700}>
+                    {assessment.totalMarks ?? 0}
+                  </Typography>
+                </Paper>
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Structure
+                  </Typography>
+
+                  <Typography variant="h6" fontWeight={700}>
+                    {assessment.hasParts ? "Parts → Sections" : "Sections"}
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+
+            {/* ================================================= */}
+            {/* ACTIONS */}
+            {/* ================================================= */}
+
+            <Box
+              sx={{
+                mt: 3,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 2,
+                flexWrap: "wrap",
+              }}
+            >
+              <Button onClick={() => setActiveStep(2)}>Back to Builder</Button>
+
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handlePublish}
+                disabled={loading}
+                startIcon={
+                  loading ? (
+                    <CircularProgress size={18} color="inherit" />
+                  ) : null
+                }
               >
-                <Button
-                  onClick={() =>
-                    setActiveStep(2)
-                  }
-                >
-                  Back to Builder
-                </Button>
-
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={
-                    handlePublish
-                  }
-                  disabled={loading}
-                  startIcon={
-                    loading ? (
-                      <CircularProgress
-                        size={18}
-                        color="inherit"
-                      />
-                    ) : null
-                  }
-                >
-                  {loading
-                    ? "Publishing..."
-                    : "Publish Assessment"}
-                </Button>
-              </Box>
-            </Paper>
-          )}
+                {loading ? "Publishing..." : "Publish Assessment"}
+              </Button>
+            </Box>
+          </Paper>
+        )}
       </Box>
     </Layout>
   );
 }
-

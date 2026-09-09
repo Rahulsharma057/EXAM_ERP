@@ -78,7 +78,7 @@ export default function AssessmentBuilder({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
+const [expandedSections, setExpandedSections] = useState({});
   // =========================================================
   // DIALOG STATES
   // =========================================================
@@ -853,74 +853,108 @@ export default function AssessmentBuilder({
   // REORDER SECTIONS
   // =========================================================
 
-  const moveSection = async (
-    section,
-    direction,
-  ) => {
-    const group = hasParts
-      ? getSectionsForPart(
-          getSectionPartId(section),
-        )
-      : getDirectSections();
+const moveSection = async (section, direction) => {
+  if (!section?._id) return;
+  if (saving) return;
 
-    const index = group.findIndex(
-      (item) =>
-        String(item._id) ===
-        String(section._id),
-    );
+  try {
+    setSaving(true);
 
-    const newIndex =
-      direction === "up"
-        ? index - 1
-        : index + 1;
+    const isPartBased = Boolean(assessment?.hasParts);
 
-    if (
-      index < 0 ||
-      newIndex < 0 ||
-      newIndex >= group.length
-    ) {
+    // ---------------------------------------------------------
+    // Find the correct section group
+    // ---------------------------------------------------------
+
+    let group = [];
+
+    if (isPartBased) {
+      group = getSectionsForPart(section.part);
+    } else {
+      group = getDirectSections();
+    }
+
+    if (!Array.isArray(group) || group.length < 2) {
       return;
     }
 
-    const updated = [...group];
+    // ---------------------------------------------------------
+    // Current index
+    // ---------------------------------------------------------
 
-    [
-      updated[index],
-      updated[newIndex],
-    ] = [
-      updated[newIndex],
-      updated[index],
-    ];
-
-    const payload = updated.map(
-      (item, idx) => ({
-        id: item._id,
-        displayOrder: idx + 1,
-      }),
+    const currentIndex = group.findIndex(
+      (item) => String(item._id) === String(section._id)
     );
 
-    try {
-      setSaving(true);
-
-      await api.reorderSections(
-        payload,
-      );
-
-      await loadAssessment();
-    } catch (err) {
-      console.error(
-        "REORDER SECTION ERROR:",
-        err,
-      );
-
-      setError(
-        err?.message ||
-          "Failed to reorder sections",
-      );
-    } finally {
-      setSaving(false);
+    if (currentIndex === -1) {
+      return;
     }
-  };
+
+    const newIndex =
+      direction === "up"
+        ? currentIndex - 1
+        : currentIndex + 1;
+
+    // ---------------------------------------------------------
+    // Boundary check
+    // ---------------------------------------------------------
+
+    if (newIndex < 0 || newIndex >= group.length) {
+      return;
+    }
+
+    // ---------------------------------------------------------
+    // Swap
+    // ---------------------------------------------------------
+
+    const reordered = [...group];
+
+    [reordered[currentIndex], reordered[newIndex]] = [
+      reordered[newIndex],
+      reordered[currentIndex],
+    ];
+
+    // ---------------------------------------------------------
+    // Create payload
+    // IMPORTANT:
+    // API expects [{ id, displayOrder }]
+    // ---------------------------------------------------------
+
+    const payload = reordered.map((item, index) => ({
+      id: item._id,
+      displayOrder: index + 1,
+    }));
+
+    console.log("REORDER SECTIONS PAYLOAD:", {
+      assessmentId: assessment?._id,
+      sections: payload,
+    });
+
+    // ---------------------------------------------------------
+    // Save to backend
+    // ---------------------------------------------------------
+
+    await api.reorderSections(
+      assessment._id,
+      payload
+    );
+
+    // ---------------------------------------------------------
+    // Reload structure
+    // ---------------------------------------------------------
+
+    await loadAssessment();
+  } catch (error) {
+    console.error("Failed to reorder section:", error);
+
+    setError(
+      error?.message ||
+        "Failed to reorder section"
+    );
+  } finally {
+    setSaving(false);
+  }
+};
 
   // =========================================================
   // QUESTION DIALOG
@@ -1174,73 +1208,97 @@ export default function AssessmentBuilder({
   // REORDER QUESTIONS
   // =========================================================
 
-  const moveQuestion = async (
-    section,
-    question,
-    direction,
-  ) => {
-    const questions = sortByOrder(
-      section.questions || [],
-    );
+const moveQuestion = async (
+  section,
+  question,
+  direction,
+) => {
+  if (!section?._id || !question?._id) {
+    return;
+  }
 
-    const index = questions.findIndex(
-      (item) =>
-        String(item._id) ===
-        String(question._id),
-    );
+  if (saving) {
+    return;
+  }
+const questions = sortByOrder(
+  section.questions || [],
+);
 
-    const newIndex =
-      direction === "up"
-        ? index - 1
-        : index + 1;
+  const index = questions.findIndex(
+    (item) =>
+      String(item._id) ===
+      String(question._id),
+  );
 
-    if (
-      index < 0 ||
-      newIndex < 0 ||
-      newIndex >= questions.length
-    ) {
-      return;
+  if (index === -1) {
+    return;
+  }
+
+  const newIndex =
+    direction === "up"
+      ? index - 1
+      : index + 1;
+
+  // Boundary check
+  if (
+    newIndex < 0 ||
+    newIndex >= questions.length
+  ) {
+    return;
+  }
+
+  // Swap
+  const updated = [...questions];
+
+  [
+    updated[index],
+    updated[newIndex],
+  ] = [
+    updated[newIndex],
+    updated[index],
+  ];
+
+  // Backend expects:
+  // [{ id, displayOrder }]
+  const payload = updated.map(
+    (item, idx) => ({
+      id: item._id,
+      displayOrder: idx + 1,
+    }),
+  );
+
+  console.log(
+    "REORDER QUESTIONS:",
+    {
+      sectionId: section._id,
+      questions: payload,
     }
+  );
 
-    const updated = [...questions];
+  try {
+    setSaving(true);
+    setError("");
 
-    [
-      updated[index],
-      updated[newIndex],
-    ] = [
-      updated[newIndex],
-      updated[index],
-    ];
-
-    const payload = updated.map(
-      (item, idx) => ({
-        id: item._id,
-        displayOrder: idx + 1,
-      }),
+    await api.reorderQuestions(
+      section._id,
+      payload,
     );
 
-    try {
-      setSaving(true);
+    await loadAssessment();
+  } catch (err) {
+    console.error(
+      "REORDER QUESTION ERROR:",
+      err,
+    );
 
-      await api.reorderQuestions(
-        payload,
-      );
-
-      await loadAssessment();
-    } catch (err) {
-      console.error(
-        "REORDER QUESTION ERROR:",
-        err,
-      );
-
-      setError(
-        err?.message ||
-          "Failed to reorder questions",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+    setError(
+      err?.message ||
+        "Failed to reorder questions",
+    );
+  } finally {
+    setSaving(false);
+  }
+};
 
   // =========================================================
   // TOGGLE PART
@@ -1255,6 +1313,15 @@ export default function AssessmentBuilder({
           : false,
     }));
   };
+  const toggleSection = (sectionId) => {
+  setExpandedSections((prev) => ({
+    ...prev,
+    [sectionId]:
+      prev[sectionId] === false
+        ? true
+        : false,
+  }));
+};
 
   // =========================================================
   // RENDER QUESTION
@@ -1471,183 +1538,256 @@ export default function AssessmentBuilder({
   // RENDER SECTION
   // =========================================================
 
-  const renderSection = (
-    section,
-    sectionIndex,
-    sectionGroup,
-  ) => {
-    return (
-      <Card
-        key={section._id}
-        elevation={0}
+const renderSection = (
+  section,
+  sectionIndex,
+  sectionGroup,
+) => {
+  const isExpanded =
+    expandedSections[section._id] !== false;
+
+  const questions = sortByOrder(
+    section.questions || [],
+  );
+
+  return (
+    <Card
+      key={section._id}
+      elevation={0}
+      sx={{
+        mb: 2,
+        borderLeft: 4,
+        borderColor: "primary.main",
+        border: "1px solid",
+        borderLeftWidth: 4,
+        overflow: "hidden",
+      }}
+    >
+      {/* ===================================================== */}
+      {/* SECTION HEADER */}
+      {/* ===================================================== */}
+
+      <Box
         sx={{
-          mb: 2,
-          borderLeft: 4,
-          borderColor:
-            "primary.main",
-          border: "1px solid",
-          borderLeftWidth: 4,
+          p: 2,
+          bgcolor: "grey.50",
         }}
       >
-        <CardContent>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 2,
+          }}
+        >
+          {/* ================================================= */}
+          {/* SECTION INFO */}
+          {/* ================================================= */}
+
           <Box
             sx={{
               display: "flex",
-              justifyContent:
-                "space-between",
-              alignItems:
-                "flex-start",
-              gap: 2,
+              alignItems: "flex-start",
+              gap: 1,
+              minWidth: 0,
+              flex: 1,
             }}
           >
-            <Box
+            <DragHandleIcon
+              color="action"
               sx={{
-                display: "flex",
-                alignItems:
-                  "flex-start",
-                gap: 1,
-                minWidth: 0,
-                flex: 1,
+                display: {
+                  xs: "none",
+                  sm: "block",
+                },
               }}
-            >
-              <DragHandleIcon
-                color="action"
-                sx={{
-                  display: {
-                    xs: "none",
-                    sm: "block",
-                  },
-                }}
-              />
+            />
 
-              <Box sx={{ minWidth: 0 }}>
-                <Box
+            <Box sx={{ minWidth: 0 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Typography
+                  variant="h6"
                   sx={{
-                    display: "flex",
-                    alignItems:
-                      "center",
-                    gap: 1,
-                    flexWrap:
-                      "wrap",
+                    wordBreak: "break-word",
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      wordBreak:
-                        "break-word",
-                    }}
-                  >
-                    {sectionIndex +
-                      1}
-                    . {section.name}
-                  </Typography>
+                  {sectionIndex + 1}.{" "}
+                  {section.name}
+                </Typography>
 
-                  <Chip
-                    size="small"
-                    label={`${getQuestionsCount(
-                      section,
-                    )} questions`}
-                    variant="outlined"
-                  />
+                <Chip
+                  size="small"
+                  label={`${getQuestionsCount(
+                    section,
+                  )} questions`}
+                  variant="outlined"
+                />
 
-                  <Chip
-                    size="small"
-                    label={`${getSectionMarks(
-                      section,
-                    )} marks`}
-                    color="success"
-                    variant="outlined"
-                  />
-                </Box>
+                <Chip
+                  size="small"
+                  label={`${getSectionMarks(
+                    section,
+                  )} marks`}
+                  color="success"
+                  variant="outlined"
+                />
 
-                {section.description && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{
-                      mt: 0.75,
-                    }}
-                  >
-                    {
-                      section.description
-                    }
-                  </Typography>
-                )}
+                <Chip
+                  size="small"
+                  label={
+                    isExpanded
+                      ? "Expanded"
+                      : "Collapsed"
+                  }
+                  color={
+                    isExpanded
+                      ? "primary"
+                      : "default"
+                  }
+                  variant="outlined"
+                />
               </Box>
+
+              {section.description && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    mt: 0.75,
+                  }}
+                >
+                  {section.description}
+                </Typography>
+              )}
             </Box>
-
-            <Stack
-              direction="row"
-              spacing={0}
-            >
-              <Tooltip title="Move up">
-                <span>
-                  <IconButton
-                    size="small"
-                    disabled={
-                      sectionIndex ===
-                      0
-                    }
-                    onClick={() =>
-                      moveSection(
-                        section,
-                        "up",
-                      )
-                    }
-                  >
-                    <KeyboardArrowUpIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-
-              <Tooltip title="Move down">
-                <span>
-                  <IconButton
-                    size="small"
-                    disabled={
-                      sectionIndex ===
-                      sectionGroup.length -
-                        1
-                    }
-                    onClick={() =>
-                      moveSection(
-                        section,
-                        "down",
-                      )
-                    }
-                  >
-                    <KeyboardArrowDownIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-
-              <IconButton
-                size="small"
-                onClick={() =>
-                  openSectionDialog(
-                    section,
-                  )
-                }
-              >
-                <EditIcon />
-              </IconButton>
-
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() =>
-                  handleDeleteSection(
-                    section,
-                  )
-                }
-              >
-                <DeleteIcon />
-              </IconButton>
-            </Stack>
           </Box>
 
-          <Divider sx={{ my: 2 }} />
+          {/* ================================================= */}
+          {/* SECTION ACTIONS */}
+          {/* ================================================= */}
+
+          <Stack
+            direction="row"
+            spacing={0}
+            alignItems="center"
+          >
+            {/* MOVE UP */}
+            <Tooltip title="Move up">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={
+                    saving ||
+                    sectionIndex === 0
+                  }
+                  onClick={() =>
+                    moveSection(
+                      section,
+                      "up",
+                    )
+                  }
+                >
+                  <KeyboardArrowUpIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            {/* MOVE DOWN */}
+            <Tooltip title="Move down">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={
+                    saving ||
+                    sectionIndex ===
+                      sectionGroup.length - 1
+                  }
+                  onClick={() =>
+                    moveSection(
+                      section,
+                      "down",
+                    )
+                  }
+                >
+                  <KeyboardArrowDownIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            {/* EDIT */}
+            <IconButton
+              size="small"
+              disabled={saving}
+              onClick={() =>
+                openSectionDialog(section)
+              }
+            >
+              <EditIcon />
+            </IconButton>
+
+            {/* DELETE */}
+            <IconButton
+              size="small"
+              color="error"
+              disabled={saving}
+              onClick={() =>
+                handleDeleteSection(section)
+              }
+            >
+              <DeleteIcon />
+            </IconButton>
+
+            {/* ================================================= */}
+            {/* SHOW / HIDE SECTION */}
+            {/* ================================================= */}
+
+            <Tooltip
+              title={
+                isExpanded
+                  ? "Hide questions"
+                  : "Show questions"
+              }
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() =>
+                    toggleSection(
+                      section._id,
+                    )
+                  }
+                >
+                  {isExpanded ? (
+                    <ExpandLessIcon />
+                  ) : (
+                    <ExpandMoreIcon />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        </Box>
+      </Box>
+
+      {/* ===================================================== */}
+      {/* SECTION CONTENT */}
+      {/* ===================================================== */}
+
+      <Collapse in={isExpanded}>
+        <CardContent
+          sx={{
+            pt: 1,
+          }}
+        >
+          <Divider sx={{ mb: 2 }} />
 
           <Box
             sx={{
@@ -1658,16 +1798,34 @@ export default function AssessmentBuilder({
               },
             }}
           >
-            {sortByOrder(
-              section.questions || [],
-            ).map(
-              (question, index) =>
-                renderQuestion(
-                  section,
-                  question,
-                  index,
-                ),
+            {/* ================================================= */}
+            {/* QUESTIONS */}
+            {/* ================================================= */}
+
+            {questions.length === 0 ? (
+              <Alert
+                severity="info"
+                sx={{
+                  mb: 2,
+                }}
+              >
+                No questions in this
+                section yet.
+              </Alert>
+            ) : (
+              questions.map(
+                (question, index) =>
+                  renderQuestion(
+                    section,
+                    question,
+                    index,
+                  ),
+              )
             )}
+
+            {/* ================================================= */}
+            {/* ADD QUESTION */}
+            {/* ================================================= */}
 
             <Button
               size="small"
@@ -1677,15 +1835,19 @@ export default function AssessmentBuilder({
                   section._id,
                 )
               }
-              sx={{ mt: 0.5 }}
+              disabled={saving}
+              sx={{
+                mt: 0.5,
+              }}
             >
               Add Question
             </Button>
           </Box>
         </CardContent>
-      </Card>
-    );
-  };
+      </Collapse>
+    </Card>
+  );
+};
 
   // =========================================================
   // DIRECT SECTIONS
