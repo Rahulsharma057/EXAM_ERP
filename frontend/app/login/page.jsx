@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -69,6 +68,12 @@ export default function LoginPage() {
         }
 
         localStorage.setItem("token", res.token);
+
+        // This is a DIRECT login (typed on this app's own login page), not
+        // an SSO handoff from the portal - clear any leftover portal marker
+        // from a previous SSO session so the "Switch app" menu in the
+        // navbar doesn't wrongly show for a user who logged in directly.
+        localStorage.removeItem("sso_portal_url");
 
         console.log(
           "TOKEN SAVED:",

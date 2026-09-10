@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -20,6 +19,8 @@ import {
   Chip,
   Tooltip,
   Collapse,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -34,6 +35,9 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import AppsOutlinedIcon from "@mui/icons-material/AppsOutlined";
+import SwapHorizOutlinedIcon from "@mui/icons-material/SwapHorizOutlined";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 
 import { api } from "../../services/api";
 
@@ -63,6 +67,21 @@ export default function Layout({ children }) {
   const [user, setUser] = useState(null);
   const [orgOpen, setOrgOpen] = useState(true);
 
+  // =========================================================
+  // SSO PORTAL SWITCHER
+  // Only shown if this session came in via the portal handoff
+  // (see app/sso/page.js, which sets this localStorage key).
+  // =========================================================
+
+  const [portalUrl, setPortalUrl] = useState(null);
+  const [switchAnchor, setSwitchAnchor] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPortalUrl(localStorage.getItem("sso_portal_url"));
+    }
+  }, []);
+
   useEffect(() => {
     api
       .getMe()
@@ -72,6 +91,7 @@ export default function Layout({ children }) {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("sso_portal_url");
     router.push("/login");
   };
 
@@ -553,6 +573,67 @@ export default function Layout({ children }) {
               Weekly Assessment ERP
             </Typography>
           </Box>
+
+          {/* Spacer pushes everything after this to the far right */}
+          <Box sx={{ flexGrow: 1 }} />
+
+          {/* =====================================================
+              SSO PORTAL SWITCHER (only visible if logged in via portal)
+          ===================================================== */}
+
+          {portalUrl && (
+            <>
+              <Tooltip title="Switch app">
+                <IconButton
+                  onClick={(e) => setSwitchAnchor(e.currentTarget)}
+                  sx={{ color: "primary.main" }}
+                >
+                  <AppsOutlinedIcon />
+                </IconButton>
+              </Tooltip>
+
+              <Menu
+                anchorEl={switchAnchor}
+                open={!!switchAnchor}
+                onClose={() => setSwitchAnchor(null)}
+                PaperProps={{
+                  elevation: 4,
+                  sx: {
+                    mt: 1,
+                    minWidth: 220,
+                    borderRadius: 1.5,
+                    border: "1px solid rgba(0,0,0,0.06)",
+                  },
+                }}
+              >
+                <MenuItem disabled sx={{ opacity: "1 !important" }}>
+                  <Typography fontWeight={700} fontSize="0.78rem" color="text.secondary">
+                    Signed in via Portal
+                  </Typography>
+                </MenuItem>
+
+                <Divider />
+
+                <MenuItem
+                  onClick={() => {
+                    window.location.href = portalUrl;
+                  }}
+                >
+                  <SwapHorizOutlinedIcon fontSize="small" sx={{ mr: 1.2, color: "primary.main" }} />
+                  Switch app
+                </MenuItem>
+
+                <MenuItem
+                  onClick={() => {
+                    window.location.href = `${portalUrl}/dashboard`;
+                  }}
+                >
+                  <HomeOutlinedIcon fontSize="small" sx={{ mr: 1.2, color: "primary.main" }} />
+                  Portal dashboard
+                </MenuItem>
+              </Menu>
+            </>
+          )}
         </Toolbar>
       </AppBar>
 
@@ -648,4 +729,3 @@ export default function Layout({ children }) {
     </Box>
   );
 }
-
