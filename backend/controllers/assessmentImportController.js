@@ -87,7 +87,7 @@ const isStructureLocked = async (assessment) => {
    "Part".
 ========================================================= */
 
-const NUMBER_TOKEN_RE = /(?<![\w.=])(\d{1,3})[.)]\s+/g;
+const NUMBER_TOKEN_RE = /(?<![\w.=])(?:[Qq]\.?\s*)?(\d{1,3})[.)]\s+/g;
 const OPTION_TOKEN_RE = /(?<![\w.])([A-D])[.)]\s+/g;
 const PART_HEADING_RE = /^part\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
 const SECTION_HEADING_RE = /^section\s+([A-Za-z0-9]+)\b[:\-\s]*(.*)$/i;
@@ -103,7 +103,7 @@ const TRUE_FALSE_RE = /true\s*\/\s*false|true or false/i;
 const YES_NO_SLASH_RE = /yes\s*\/\s*no|yes or no/i;
 const NUMBER_HINT_RE = /calculate|how many|what is the (value|sum|result|answer)|find the value|numeric answer/i;
 const OPTIONAL_HINT_RE = /\(optional\)/i;
-const PAGE_BREAK_ARTIFACT_RE = /--\s*\d+\s*of\s*\d+\s*--/gi;
+const PAGE_BREAK_ARTIFACT_RE = /(?:--\s*)?(?:page\s*)?\d{1,3}\s*of\s*\d{1,3}(?:\s*--)?/gi;
 
 const headingLabel = (keyword, id, rest) => {
   const label = `${keyword} ${id}`.trim();
@@ -111,11 +111,15 @@ const headingLabel = (keyword, id, rest) => {
 };
 
 /**
- * Finds question-start boundaries in the whole text using a strict
- * sequential scan: the first accepted number must be 1, 2 or 3, and
- * every subsequent accepted number must be exactly one more than the
- * last. Anything that breaks the sequence is ignored as noise
- * (marks like "(Yes=3, No=0)", page-break artifacts, etc).
+ * Finds question-start boundaries in the whole text using a sequential
+ * scan: the first accepted number must be 1, 2 or 3, and each subsequent
+ * accepted number must either continue the sequence (exactly one more
+ * than the last) OR restart at 1 — which is the normal case when a new
+ * section/criteria block begins its own numbering from scratch (very
+ * common in real assessment papers, e.g. "Fabric Cutting" starting back
+ * at "1." right after "Pattern Making" ended at "6."). Anything else
+ * (marks like "(Yes=3, No=0)", page-break artifacts, etc) breaks both
+ * conditions and is ignored as noise.
  */
 const findQuestionBoundaries = (text) => {
   const rawMatches = [];
@@ -143,6 +147,10 @@ const findQuestionBoundaries = (text) => {
     if (m.number === expected) {
       boundaries.push(m);
       expected += 1;
+    } else if (m.number === 1) {
+      // Numbering restarted for a new section/criteria block.
+      boundaries.push(m);
+      expected = 2;
     }
     // else: skip — breaks the sequence, treated as noise
   }
@@ -187,6 +195,11 @@ const extractOptions = (raw) => {
 /**
  * Separates a question's marks annotation from a possible trailing
  * heading fragment that got glued onto it during text extraction.
+ * Also reports whether a marks pattern was actually found — this is
+ * used upstream to tell a real exam question ("Did the student...?
+ * (Yes=3, No=0)") apart from a numbered instructor/guideline sentence
+ * ("1. Trainer will check if...") that happens to share the same
+ * "N. " numbering style in the source table.
  */
 const extractMarksAndHeading = (raw) => {
   const yesNoMatch = raw.match(YES_NO_MARKS_RE);
@@ -214,7 +227,7 @@ const extractMarksAndHeading = (raw) => {
 
     const matchEnd = raw.indexOf(match[0]) + match[0].length;
     const before = raw.slice(0, matchEnd);
-    const after = raw.slice(matchEnd).trim();
+    const after = raw.slice(matchEnd).replace(/^[.\s]+|[.\s]+$/g, "").trim();
 
     questionText = strip ? before.replace(match[0], "").trim() : before.trim();
 
@@ -235,7 +248,28 @@ const extractMarksAndHeading = (raw) => {
     if (!trailingHeading) trailingHeading = null;
   }
 
-  return { questionText, maxPoints, trailingHeading };
+  return { questionText, maxPoints, trailingHeading, hasMarksPattern: Boolean(chosen) };
+};
+
+/**
+ * Many rubric tables (e.g. a scanned/OCR'd assessment grid) have a
+ * "Guidelines on how to assess" column sitting right next to the
+ * "Questions for form/sheet" column — and BOTH are numbered "1. 2.
+ * 3...". Once text extraction flattens the table, those two numbered
+ * lists land in the same stream and both pass the boundary scan.
+ * This tells them apart: a real exam question either carries a
+ * marks annotation ("Yes=3, No=0") or is phrased as a question
+ * ("...?"); a guideline is an instruction to the assessor/trainer
+ * and has neither.
+ */
+const GUIDELINE_INSTRUCTION_RE =
+  /^(the\s+)?(trainer|assessor|teacher|examiner|evaluator|invigilator)\s+(will|shall|should|must)\b/i;
+
+const looksLikeRealQuestion = (questionText, hasMarksPattern) => {
+  if (!questionText) return false;
+  if (hasMarksPattern) return true;
+  if (GUIDELINE_INSTRUCTION_RE.test(questionText.trim())) return false;
+  return /\?\s*$/.test(questionText.trim());
 };
 
 /**
@@ -258,9 +292,25 @@ const splitHeadingFragments = (text) => {
   return [cleaned];
 };
 
-/** Best-effort heading recovery from the text that appears before Question 1. */
+/**
+ * Best-effort heading recovery from the text that appears before
+ * Question 1. Real documents often stack more than one heading here
+ * (e.g. a Part heading "Plain Kurta (Sample)" followed by its first
+ * Section heading "Online Research"), each its own short line with
+ * no trailing period — so this walks backwards from the end of the
+ * preamble collecting every short, non-descriptive fragment, then
+ * joins them back together. splitHeadingFragments() (used by the
+ * caller) then separates the "(...)"-qualified Part fragment from
+ * the plain Section fragment.
+ */
+const PREAMBLE_NOISE_RE = /assessment|prepared|question bank|instructions?|reconstructed|cross-checked|please verify/i;
+const TARGET_TIME_RE = /target\s*time\s*:?\s*\d+\s*minutes?/gi;
+
 const extractPreambleHeading = (preamble) => {
-  const cleaned = preamble.replace(PAGE_BREAK_ARTIFACT_RE, "").trim();
+  const cleaned = String(preamble || "")
+    .replace(PAGE_BREAK_ARTIFACT_RE, "")
+    .replace(TARGET_TIME_RE, "")
+    .trim();
   if (!cleaned) return null;
 
   const sentences = cleaned
@@ -268,18 +318,18 @@ const extractPreambleHeading = (preamble) => {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const last = sentences[sentences.length - 1] || "";
-  const wordCount = last.split(/\s+/).filter(Boolean).length;
+  const collected = [];
+  for (let i = sentences.length - 1; i >= 0; i--) {
+    const s = sentences[i].replace(/\.$/, "").trim();
+    if (!s) continue;
 
-  if (
-    wordCount > 0 &&
-    wordCount <= 8 &&
-    !/assessment|prepared|question bank|instructions?/i.test(last)
-  ) {
-    return last.replace(/\.$/, "").trim();
+    const wordCount = s.split(/\s+/).filter(Boolean).length;
+    if (wordCount === 0 || wordCount > 8 || PREAMBLE_NOISE_RE.test(s)) break;
+
+    collected.unshift(s);
   }
 
-  return null;
+  return collected.length ? collected.join(" ") : null;
 };
 
 const detectQuestionType = (questionText, options) => {
@@ -296,12 +346,73 @@ const detectQuestionType = (questionText, options) => {
 };
 
 /**
+ * Many exported question banks (including ones this same importer's
+ * output format produces) include a per-section summary line like
+ * "Total: 4 points" or "Total: 4 points | Reference: Student's
+ * techpack, student's variation" right before the next heading. Left
+ * in place, that text gets glued onto the trailing-heading candidate,
+ * pushes it past the 8-word "looks like a heading" threshold, and the
+ * REAL heading that follows (e.g. "Fabric Cutting", "Plain Kurta
+ * (Variation)") gets swallowed into the previous question's text
+ * instead of starting a new section/part.
+ *
+ * IMPORTANT: this does NOT rely on line breaks — PDF/DOCX text
+ * extraction frequently drops them between a wrapped line and the
+ * next (e.g. "...required? (Yes=1, No=0)16. Did the student place"
+ * with zero separator), so a "^...$" per-line regex silently misses
+ * exactly the cases that matter most. These match anywhere in the
+ * text instead.
+ */
+// "Total: 4 points" / "Total 4 points." — safe to strip outright,
+// it's short and unambiguous.
+const TOTAL_POINTS_RE = /total\s*:?\s*\d{1,4}(\.\d+)?\s*points?\.?/gi;
+// "| Reference: ..." / "Reference: ..." — the reference list itself
+// has no reliable end-of-clause marker once newlines are gone (it's
+// often itself full of capitalized proper nouns like "MasterC™
+// Standard Seam Allowance Chart", so stopping at the next capital
+// letter would cut it short). A fixed character cap is safer than a
+// lookahead here: it guarantees we never accidentally consume a
+// distant real heading, at the cost of occasionally leaving a short
+// harmless fragment behind.
+const REFERENCE_CLAUSE_RE = /[|\-\u2013\u2014]?\s*(?:guideline\/)?reference\s*:?\s*[^.;]{0,80}/gi;
+
+// "Note: ..." explanatory asides (e.g. ones this importer's own
+// question-bank PDFs sometimes include, like "Note: unlike the Basic
+// Bodice rubric, there is no separate dart..."). These are pure
+// commentary, not part of any question or heading, so they're
+// discarded outright. Notes are written as complete sentence(s), so
+// bounding the match at the first following period is reliable here
+// (unlike the Reference clause, which has no such natural end marker).
+const NOTE_ANNOTATION_RE = /\bnote\s*:\s*[\s\S]*?\./gi;
+
+const stripTotalsSummaryNoise = (text) =>
+  String(text || "")
+    .replace(NOTE_ANNOTATION_RE, " ")
+    .replace(TOTAL_POINTS_RE, " ")
+    .replace(REFERENCE_CLAUSE_RE, " ");
+
+/**
  * Parses raw text of a question paper into a Part -> Section -> Question
  * tree (hasParts = true) or a flat Section -> Question list (hasParts =
  * false). No AI call — pure regex/heuristics, robust to lost line breaks.
  */
 const parseStructuredQuestions = (rawText, hasParts) => {
-  const normalized = String(rawText || "").replace(/\s+/g, " ").trim();
+  const withoutSummaryLines = stripTotalsSummaryNoise(rawText);
+  // Real line breaks are meaningful here — a standalone heading line
+  // ("Plain Kurta (Sample)", "Online Research") has no trailing
+  // period of its own, so without this a line break and a plain
+  // space would look identical and headings would be indistinguishable
+  // from running prose. Turning each line break into its own
+  // sentence-ending marker (before the final whitespace collapse)
+  // lets extractPreambleHeading and the sentence-aware bits below
+  // treat "end of line" as "end of heading fragment".
+  const withLineMarkers = withoutSummaryLines
+    .replace(/\r\n|\r|\n/g, ". ")
+    // A line that was blank (or became blank after summary-noise
+    // stripping) would otherwise chain into "..  .." — collapse any
+    // run of period-markers down to one.
+    .replace(/(?:\s*\.){2,}/g, ".");
+  const normalized = withLineMarkers.replace(/\s+/g, " ").trim();
   const boundaries = findQuestionBoundaries(normalized);
 
   if (boundaries.length === 0) {
@@ -382,11 +493,11 @@ const parseStructuredQuestions = (rawText, hasParts) => {
     const rawBlock = normalized.slice(start, end).trim();
 
     const { questionCore, options } = extractOptions(rawBlock);
-    const { questionText, maxPoints, trailingHeading } = extractMarksAndHeading(questionCore);
+    const { questionText, maxPoints, trailingHeading, hasMarksPattern } = extractMarksAndHeading(questionCore);
 
     applyPendingHeadings();
 
-    if (questionText) {
+    if (questionText && looksLikeRealQuestion(questionText, hasMarksPattern)) {
       currentSection.questions.push({
         questionText,
         questionType: detectQuestionType(questionText, options),
